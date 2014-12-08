@@ -18,11 +18,13 @@
       'VCLinkerTool': {
         'AdditionalDependencies': [
             'runtimeobject.lib',
+            'LocationApi.lib'
         ],
         'DelayLoadDLLs': [
             'API-MS-WIN-CORE-WINRT-ERROR-L1-1-0.DLL',
             'API-MS-WIN-CORE-WINRT-L1-1-0.DLL',
             'API-MS-WIN-CORE-WINRT-STRING-L1-1-0.DLL',
+            'LocationApi.DLL',
         ],
       },
     },
@@ -567,6 +569,7 @@
           'link_settings': {
             'libraries': [
               '$(SDKROOT)/System/Library/Frameworks/AddressBook.framework',
+              '$(SDKROOT)/System/Library/Frameworks/CoreLocation.framework',
             ],
           },
         }],
