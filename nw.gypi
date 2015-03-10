@@ -856,7 +856,7 @@
             'nw',
           ],
         }],
-        ['OS=="linux"', {
+        ['OS=="linux" and target_arch!="arm"', {
           'variables': {
             'linux_strip_binary': 1,
           },
@@ -891,7 +891,7 @@
       'target_name': 'strip_binaries',
       'type': 'none',
       'conditions': [
-        ['OS=="linux"', {
+        ['OS=="linux" and target_arch!="arm"', {
           'actions': [
             {
               'action_name': 'strip_nw_binaries',
