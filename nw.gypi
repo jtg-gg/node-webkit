@@ -857,9 +857,17 @@
           ],
         }],
         ['OS=="linux"', {
-          'variables': {
-            'linux_strip_binary': 1,
-          },
+          'conditions': [
+            ['target_arch=="arm"', {
+              'variables': {
+                'linux_strip_binary': 'arm-linux-gnueabihf-strip',
+              },
+            }, {
+              'variables': {
+                'linux_strip_binary': 'strip',
+              },
+            }],
+          ],
           'actions': [
             {
               'action_name': 'dump_symbol_and_strip',
@@ -894,15 +902,27 @@
         ['OS=="linux"', {
           'actions': [
             {
+              'conditions': [
+                ['target_arch=="arm"', {
+                  'variables': {
+                    'linux_strip_binary': 'arm-linux-gnueabihf-strip',
+                  },
+                }, {
+                  'variables': {
+                    'linux_strip_binary': 'strip',
+                  },
+                }],
+              ],
               'action_name': 'strip_nw_binaries',
               'inputs': [
                 '<(PRODUCT_DIR)/nwjc',
                 '<(PRODUCT_DIR)/chromedriver',
+                '<(PRODUCT_DIR)/libffmpegsumo.so',
               ],
               'outputs': [
                 '<(PRODUCT_DIR)/strip_binaries.stamp',
               ],
-              'action': ['strip',
+              'action': ['<(linux_strip_binary)',
                          '<@(_inputs)'],
               'message': 'Stripping release binaries',
             },
