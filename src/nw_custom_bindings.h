@@ -9,11 +9,12 @@
 
 namespace extensions {
 class ScriptContext;
+class Dispatcher;
 
 // Implements custom bindings for document-level operations.
 class NWCustomBindings : public ObjectBackedNativeHandler {
  public:
-  NWCustomBindings(ScriptContext* context);
+  NWCustomBindings(ScriptContext* context, Dispatcher* dispatcher);
 
   void AddRoutes() override;
 
@@ -23,6 +24,7 @@ class NWCustomBindings : public ObjectBackedNativeHandler {
   void EvalNWBin(const v8::FunctionCallbackInfo<v8::Value>& args);
   void GetAbsolutePath(const v8::FunctionCallbackInfo<v8::Value>& args);
   void GetOldCwd(const v8::FunctionCallbackInfo<v8::Value>& args);
+  void MediaRecorderStart(const v8::FunctionCallbackInfo<v8::Value>& args);
   void AddOriginAccessWhitelistEntry(const v8::FunctionCallbackInfo<v8::Value>& args);
   void RemoveOriginAccessWhitelistEntry(const v8::FunctionCallbackInfo<v8::Value>& args);
   void GetProxyForURL(const v8::FunctionCallbackInfo<v8::Value>& args);
@@ -30,6 +32,8 @@ class NWCustomBindings : public ObjectBackedNativeHandler {
   void GetRoutingID(const v8::FunctionCallbackInfo<v8::Value>& args);
   void GetWidgetRoutingID(const v8::FunctionCallbackInfo<v8::Value>& args);
   void CallInWindow(const v8::FunctionCallbackInfo<v8::Value>& args);
+
+  Dispatcher* dispatcher_;
 };
 
 }  // namespace extensions
