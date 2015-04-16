@@ -1,0 +1,52 @@
+diff --git modules/desktop_capture/mac/desktop_configuration_monitor.cc modules/desktop_capture/mac/desktop_configuration_monitor.cc
+index e8378c3..058fa74 100644
+--- modules/desktop_capture/mac/desktop_configuration_monitor.cc
++++ modules/desktop_capture/mac/desktop_configuration_monitor.cc
+@@ -10,6 +10,7 @@
+ 
+ #include "modules/desktop_capture/mac/desktop_configuration_monitor.h"
+ 
++#include "base/threading/thread_restrictions.h"
+ #include "modules/desktop_capture/mac/desktop_configuration.h"
+ #include "rtc_base/logging.h"
+ #include "rtc_base/trace_event.h"
+@@ -42,6 +43,9 @@ DesktopConfigurationMonitor::~DesktopConfigurationMonitor() {
+ }
+ 
+ void DesktopConfigurationMonitor::Lock() {
++#ifdef _DEBUG
++  base::ScopedAllowBaseSyncPrimitivesForTesting allow_base_sync_primitives;
++#endif
+   if (!display_configuration_capture_event_->Wait(
+           kDisplayConfigurationEventTimeoutMs)) {
+     RTC_LOG_F(LS_ERROR) << "Event wait timed out.";
+diff --git modules/desktop_capture/mac/desktop_frame_provider.mm modules/desktop_capture/mac/desktop_frame_provider.mm
+index 42343150b5..9fa39b1668 100644
+--- modules/desktop_capture/mac/desktop_frame_provider.mm
++++ modules/desktop_capture/mac/desktop_frame_provider.mm
+@@ -23,14 +23,14 @@ DesktopFrameProvider::DesktopFrameProvider(bool allow_iosurface)
+ }
+ 
+ DesktopFrameProvider::~DesktopFrameProvider() {
+-  RTC_DCHECK(thread_checker_.CalledOnValidThread());
++  //RTC_DCHECK(thread_checker_.CalledOnValidThread());
+ 
+   Release();
+ }
+ 
+ std::unique_ptr<DesktopFrame> DesktopFrameProvider::TakeLatestFrameForDisplay(
+     CGDirectDisplayID display_id) {
+-  RTC_DCHECK(thread_checker_.CalledOnValidThread());
++  //RTC_DCHECK(thread_checker_.CalledOnValidThread());
+ 
+   if (!allow_iosurface_) {
+     // Regenerate a snapshot.
+@@ -61,7 +61,7 @@ void DesktopFrameProvider::InvalidateIOSurface(CGDirectDisplayID display_id,
+ }
+ 
+ void DesktopFrameProvider::Release() {
+-  RTC_DCHECK(thread_checker_.CalledOnValidThread());
++  //RTC_DCHECK(thread_checker_.CalledOnValidThread());
+ 
+   if (!allow_iosurface_) {
+     return;
