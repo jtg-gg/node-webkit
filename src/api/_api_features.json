@@ -19,6 +19,10 @@
     "channel": "stable",
     "contexts": ["blessed_extension"]
   },
+  "nw.MediaRecorder": {
+    "channel": "stable",
+    "contexts": ["blessed_extension"]
+  },
   "nw.Menu": {
     "channel": "stable",
     "contexts": ["blessed_extension"]
