@@ -4,6 +4,7 @@
 
 #include "content/nw/src/nw_custom_bindings.h"
 
+#include "content/nw/src/api/mediarecorder/mediarecorder.h"
 #include "content/renderer/render_view_impl.h"
 #include "content/public/renderer/render_thread.h"
 
@@ -12,6 +13,7 @@
 #include "base/bind.h"
 #include "base/files/file_util.h"
 #include "extensions/renderer/script_context.h"
+#include "extensions/renderer/dispatcher.h"
 #include "v8/include/v8.h"
 
 #undef LOG
@@ -79,8 +81,8 @@ bool MakePathAbsolute(base::FilePath* file_path) {
 }
 
 } // namespace
-NWCustomBindings::NWCustomBindings(ScriptContext* context)
-    : ObjectBackedNativeHandler(context) {
+NWCustomBindings::NWCustomBindings(ScriptContext* context, Dispatcher* dispatcher)
+    : ObjectBackedNativeHandler(context), dispatcher_(dispatcher) {
   RouteFunction("crashRenderer",
                 base::Bind(&NWCustomBindings::CrashRenderer,
                            base::Unretained(this)));
@@ -93,6 +95,13 @@ NWCustomBindings::NWCustomBindings(ScriptContext* context)
   RouteFunction("getAbsolutePath",
                 base::Bind(&NWCustomBindings::GetAbsolutePath,
                            base::Unretained(this)));
+  RouteFunction("MediaRecorderStart",
+                base::Bind(&NWCustomBindings::MediaRecorderStart,
+                base::Unretained(this)));
+  RouteFunction("MediaRecorderStop",
+                base::Bind(&nw::MediaRecorder::Stop));
+  RouteFunction("MediaRecorderCall",
+                base::Bind(&nw::MediaRecorder::Call));
   RouteFunction("addOriginAccessWhitelistEntry",
                 base::Bind(&NWCustomBindings::AddOriginAccessWhitelistEntry,
                            base::Unretained(this)));
@@ -254,6 +263,10 @@ void NWCustomBindings::AddOriginAccessWhitelistEntry(const v8::FunctionCallbackI
   return;
 }
 
+void NWCustomBindings::MediaRecorderStart(const v8::FunctionCallbackInfo<v8::Value>& args) {
+  nw::MediaRecorder::Start(args, context(), dispatcher_);
+}
+  
 void NWCustomBindings::RemoveOriginAccessWhitelistEntry(const v8::FunctionCallbackInfo<v8::Value>& args) {
   v8::Isolate* isolate = args.GetIsolate();
 
