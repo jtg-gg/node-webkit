@@ -32,6 +32,7 @@
 #include "content/nw/src/api/base/base.h"
 //#include "content/nw/src/api/clipboard/clipboard.h"
 //#include "content/nw/src/api/event/event.h"
+#include "content/nw/src/api/mediarecorder/mediarecorder.h"
 #include "content/nw/src/api/menu/menu.h"
 #include "content/nw/src/api/menuitem/menuitem.h"
 //#include "content/nw/src/api/screen/screen.h"
@@ -98,6 +99,8 @@ void ObjectManager::OnAllocateObject(int object_id,
                                 std::make_unique<MenuItem>(object_id, weak_ptr_factory_.GetWeakPtr(), option, extension_id), object_id);
   } else if (type == "Tray") {
     objects_registry_.AddWithID(std::make_unique<Tray>(object_id, weak_ptr_factory_.GetWeakPtr(), option, extension_id), object_id);
+  } else if (type == "MediaRecorder") {
+    objects_registry_.AddWithID(std::make_unique<MediaRecorder>(object_id, weak_ptr_factory_.GetWeakPtr(), option, extension_id), object_id);
   }
 #if 0
   else if (type == "Clipboard") {
