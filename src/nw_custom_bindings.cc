@@ -2,6 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 #include "content/nw/src/nw_custom_bindings.h"
+#include "content/nw/src/api/mediarecorder/mediarecorder.h"
 
 #define INSIDE_BLINK 1
 #include "third_party/blink/public/platform/web_rect.h"
@@ -15,6 +16,7 @@
 #include "base/bind.h"
 #include "base/files/file_util.h"
 #include "extensions/renderer/script_context.h"
+#include "extensions/renderer/dispatcher.h"
 #include "v8/include/v8.h"
 
 #define INSIDE_BLINK 1
@@ -156,6 +158,13 @@ void NWCustomBindings::AddRoutes() {
   RouteHandlerFunction("getAbsolutePath",
                 base::Bind(&NWCustomBindings::GetAbsolutePath,
                            base::Unretained(this)));
+  RouteHandlerFunction("MediaRecorderStart",
+                base::Bind(&NWCustomBindings::MediaRecorderStart,
+                base::Unretained(this)));
+  RouteHandlerFunction("MediaRecorderStop",
+                base::Bind(&nw::MediaRecorder::Stop));
+  RouteHandlerFunction("MediaRecorderCall",
+                base::Bind(&nw::MediaRecorder::Call));
   RouteHandlerFunction("addOriginAccessWhitelistEntry",
                 base::Bind(&NWCustomBindings::AddOriginAccessWhitelistEntry,
                            base::Unretained(this)));
@@ -179,8 +188,8 @@ void NWCustomBindings::AddRoutes() {
                            base::Unretained(this)));
 }
 
-NWCustomBindings::NWCustomBindings(ScriptContext* context)
-    : ObjectBackedNativeHandler(context) {
+NWCustomBindings::NWCustomBindings(ScriptContext* context, Dispatcher* dispatcher)
+  : ObjectBackedNativeHandler(context), dispatcher_(dispatcher) {
 }
 
 void NWCustomBindings::CallInWindow(
@@ -385,6 +394,10 @@ void NWCustomBindings::AddOriginAccessWhitelistEntry(const v8::FunctionCallbackI
   return;
 }
 
+void NWCustomBindings::MediaRecorderStart(const v8::FunctionCallbackInfo<v8::Value>& args) {
+  nw::MediaRecorder::Start(args, context(), dispatcher_);
+}
+  
 void NWCustomBindings::RemoveOriginAccessWhitelistEntry(const v8::FunctionCallbackInfo<v8::Value>& args) {
   v8::Isolate* isolate = args.GetIsolate();
 
