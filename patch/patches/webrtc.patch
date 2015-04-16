@@ -1,0 +1,22 @@
+diff --git modules/desktop_capture/mac/desktop_configuration_monitor.cc modules/desktop_capture/mac/desktop_configuration_monitor.cc
+index 4eeee32..a919109 100644
+--- modules/desktop_capture/mac/desktop_configuration_monitor.cc
++++ modules/desktop_capture/mac/desktop_configuration_monitor.cc
+@@ -10,6 +10,7 @@
+ 
+ #include "modules/desktop_capture/mac/desktop_configuration_monitor.h"
+ 
++#include "base/threading/thread_restrictions.h"
+ #include "modules/desktop_capture/mac/desktop_configuration.h"
+ #include "rtc_base/logging.h"
+ #include "system_wrappers/include/event_wrapper.h"
+@@ -41,6 +42,9 @@ DesktopConfigurationMonitor::~DesktopConfigurationMonitor() {
+ }
+ 
+ void DesktopConfigurationMonitor::Lock() {
++#ifdef _DEBUG
++  base::ScopedAllowBaseSyncPrimitivesForTesting allow_base_sync_primitives;
++#endif
+   if (!display_configuration_capture_event_->Wait(
+               kDisplayConfigurationEventTimeoutMs)) {
+     RTC_LOG_F(LS_ERROR) << "Event wait timed out.";
