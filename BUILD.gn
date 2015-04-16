@@ -21,6 +21,47 @@ group("nwjs") {
   }
 }
 
+static_library("nw_ffmpeg") {
+  cflags = []
+  deps = [
+    "//base",
+    "//third_party/ffmpeg:ffmpeg",
+    "//media:media",
+  ]
+  #copy all the defines from ffmpeg/BUILD.gn
+  defines = [
+    "HAVE_AV_CONFIG_H",
+    "_POSIX_C_SOURCE=200112",
+    "_XOPEN_SOURCE=600",
+    "PIC",
+  ]
+  if (is_posix && !is_mac) {
+    defines += [
+      "_ISOC99_SOURCE",
+      "_LARGEFILE_SOURCE",
+    ]
+  }
+  if (is_mac) {
+    defines += [ "_DARWIN_C_SOURCE" ]
+  } else if (is_win) {
+    defines += [
+      "_ISOC99_SOURCE",
+      "_LARGEFILE_SOURCE",
+      "HAVE_AV_CONFIG_H",
+    ]
+  }
+  if (is_official_build) {
+    defines += [ "CHROMIUM_NO_LOGGING" ]
+  }
+  sources = [
+    "src/api/mediarecorder/ffmpeg_mediarecorder.h",
+    "src/api/mediarecorder/ffmpeg_mediarecorder.c",
+    "src/api/mediarecorder/ffmpeg_mediarecorder_wrapper.h",
+    "src/api/mediarecorder/ffmpeg_mediarecorder_wrapper.cc",
+  ]
+  cflags += [ "-Wno-reserved-user-defined-literal" ]
+}
+
 component("nw_base") {
   deps = [
     "//base",
@@ -100,6 +141,8 @@ nw_chrome_browser_sources = [
         "src/api/object_manager_factory.h",
         "src/api/base/base.cc",
         "src/api/base/base.h",
+        "src/api/mediarecorder/mediarecorder.cc",
+        "src/api/mediarecorder/mediarecorder.h",
         "src/api/menu/menu.cc",
         "src/api/menu/menu.h",
         "src/api/menuitem/menuitem.cc",
@@ -127,6 +170,7 @@ static_library("nw_browser") {
     "//third_party/zlib:minizip",
     "//skia",
     ":nw_base",
+    ":nw_ffmpeg",
     "//content/nw/src/api:nw_api",
     "//content/nw/src/api:nw_api_registration",
     "//third_party/protobuf:protobuf_lite",
@@ -136,6 +180,7 @@ static_library("nw_browser") {
     "//third_party",
     "//third_party/WebKit",
     "//third_party/mojo/src",
+    "//third_party/WebKit",
   ]
   sources = nw_chrome_browser_sources
   if (is_win) {
