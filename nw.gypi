@@ -42,6 +42,21 @@
   },
   'targets': [
     {
+      'target_name': 'nw_ffmpeg',
+      'type': 'static_library',
+	  'dependencies': [
+	    '<(DEPTH)/base/base.gyp:base',
+	    '<(DEPTH)/third_party/ffmpeg/ffmpeg.gyp:ffmpeg',
+		'<(DEPTH)/media/media.gyp:media',
+      ],
+	  'sources': [
+	    'src/api/mediarecorder/ffmpeg_mediarecorder.h',
+		'src/api/mediarecorder/ffmpeg_mediarecorder.c',
+		'src/api/mediarecorder/ffmpeg_mediarecorder_wrapper.h',
+		'src/api/mediarecorder/ffmpeg_mediarecorder_wrapper.cc',
+      ],
+	},
+    {
       'target_name': 'nw_lib',
       'type': 'static_library',
       'defines!': ['CONTENT_IMPLEMENTATION'],
@@ -101,6 +116,7 @@
         '<(DEPTH)/ppapi/ppapi_internal.gyp:ppapi_proxy',
         '<(DEPTH)/ppapi/ppapi_internal.gyp:ppapi_ipc',
         '<(DEPTH)/ppapi/ppapi_internal.gyp:ppapi_shared',
+		'nw_ffmpeg',
         'nw_resources',
         'commit_id',
       ],
@@ -221,6 +237,8 @@
         'src/api/window_bindings.cc',
         'src/api/window_bindings.h',
         'src/api/v8_internal_helper.cc',
+		'src/api/mediarecorder/mediarecorder.cc',
+		'src/api/mediarecorder/mediarecorder.h',
         'src/api/menu/menu.cc',
         'src/api/menu/menu.h',
         'src/api/menu/menu_delegate.cc',
