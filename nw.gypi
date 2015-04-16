@@ -40,6 +40,21 @@
   },
   'targets': [
     {
+      'target_name': 'nw_ffmpeg',
+      'type': 'static_library',
+	  'dependencies': [
+	    '<(DEPTH)/base/base.gyp:base',
+	    '<(DEPTH)/third_party/ffmpeg/ffmpeg.gyp:ffmpeg',
+		'<(DEPTH)/media/media.gyp:media',
+      ],
+	  'sources': [
+	    'src/api/mediarecorder/ffmpeg_mediarecorder.h',
+		'src/api/mediarecorder/ffmpeg_mediarecorder.c',
+		'src/api/mediarecorder/ffmpeg_mediarecorder_wrapper.h',
+		'src/api/mediarecorder/ffmpeg_mediarecorder_wrapper.cc',
+      ],
+	},
+    {
       'target_name': 'nw_base',
       'type': '<(component)',
       'dependencies': [
@@ -71,6 +86,7 @@
         '<(DEPTH)/third_party/zlib/zlib.gyp:minizip',
         '<(DEPTH)/skia/skia.gyp:skia',
         'nw_base',
+        'nw_ffmpeg',
         '<(DEPTH)/content/nw/src/api/api.gyp:nw_api',
         '<(DEPTH)/content/nw/src/api/api_registration.gyp:nw_api_registration',
         '<(DEPTH)/extensions/browser/api/api_registration.gyp:extensions_api_registration',
@@ -109,6 +125,8 @@
         'src/api/object_manager_factory.h',
         'src/api/base/base.cc',
         'src/api/base/base.h',
+        'src/api/mediarecorder/mediarecorder.cc',
+        'src/api/mediarecorder/mediarecorder.h',
         'src/api/menu/menu.cc',
         'src/api/menu/menu.h',
         'src/api/menuitem/menuitem.cc',
