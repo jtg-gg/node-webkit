@@ -25,6 +25,9 @@ extern "C" {
 #include <libswscale/swscale.h>
 #include <libswresample/swresample.h>
 #include "ffmpeg_mediarecorder_wrapper.h"
+  
+  // forward declaration
+  void avpriv_color_frame(AVFrame *frame, const int *c);
 
   FFMpegMediaRecorder::FFMpegMediaRecorder() {
     memset(&video_st, 0, sizeof(video_st));
@@ -39,6 +42,10 @@ extern "C" {
     audioIdx_ = 0;
     fileReady_ = false;
     lastSrcW_ = lastSrcH_ = 0;
+    
+    blackPixel_  = NULL;
+    blackScaler_ = NULL;
+    
     av_register_all();
   }
 
@@ -62,7 +69,7 @@ extern "C" {
     /* Now that all the parameters are set, we can open the
     * video codecs and allocate the necessary encode buffers. */
     if (have_video)
-      have_video = open_video(oc, video_codec, &video_st, NULL) == 0;
+      have_video = open_video(oc, video_codec, &video_st) == 0;
     
     if (have_video && have_audio)
       InitFile();
@@ -79,7 +86,7 @@ extern "C" {
     }
 
     if (have_audio)
-      have_audio = open_audio(oc, audio_codec, &audio_st, NULL, samplerate, channels) == 0;
+      have_audio = open_audio(oc, audio_codec, &audio_st, samplerate, channels) == 0;
 
     if (have_audio && have_video)
       InitFile();
@@ -126,9 +133,24 @@ extern "C" {
 
     base::AutoLock lock(lock_);
     const AVCodecContext* c = video_st.st->codec;
+    AVFrame* dstFrame = video_st.frame;
+
     const int srcW = frame.coded_size().width();
     const int srcH = frame.coded_size().height();
     const PixelFormat srcF = ::VideoFormatToPixelFormat(frame.format());
+    
+    const size_t srcNumPlanes = frame.NumPlanes(frame.format());
+    const uint8* srcSlice[media::VideoFrame::kMaxPlanes];
+    int srcStride[media::VideoFrame::kMaxPlanes];
+    
+    for(size_t i=0; i<srcNumPlanes; i++) {
+      srcSlice[i]=frame.data(i);
+      srcStride[i]=frame.stride(i);
+    }
+    for(size_t i=srcNumPlanes; i<media::VideoFrame::kMaxPlanes; i++) {
+      srcSlice[i] = NULL;
+      srcStride[i] = 0;
+    }
 
     if (c->width != srcW || c->height != srcH ||
       c->pix_fmt != srcF) {
@@ -140,11 +162,25 @@ extern "C" {
         sws_freeContext(video_st.sws_ctx);
         video_st.sws_ctx = NULL;
       }
+      
+      float scale = (float)c->height/srcH;
+      int dstW = srcW * scale;
+      int dstH;
+      
+      if (dstW <= c->width)
+        dstH = scale * srcH;
+      else {
+        scale = (float) c->width/srcW;
+        dstW = scale * srcW;
+        dstH = scale * srcH;
+      }
+      
+      assert(dstW <= c->width && dstH <= c->height);
 
       if (video_st.sws_ctx == NULL) {
         video_st.sws_ctx = sws_getContext(
           srcW, srcH, srcF,
-          c->width, c->height, c->pix_fmt,
+          dstW, dstH, c->pix_fmt,
           SWS_BICUBIC, NULL, NULL, NULL);
 
         if (!video_st.sws_ctx) 
@@ -152,33 +188,67 @@ extern "C" {
 
         lastSrcW_ = srcW;
         lastSrcH_ = srcH;
+        
+        const AVPixFmtDescriptor *desc = av_pix_fmt_desc_get((AVPixelFormat)dstFrame->format);
+        if (desc->flags & AV_PIX_FMT_FLAG_PLANAR) {
+          const int isRGB = desc->flags & AV_PIX_FMT_FLAG_RGB;
+          // YUV black value is 0, 128, 128
+          const int color[] = {0, isRGB ? 0 : 128, isRGB ? 0 : 128, 0};
+          avpriv_color_frame(dstFrame, color);
+        } else {
+          // SLOW path, non planar, make black picture, scale it to the target !!
+          if (blackPixel_ == NULL) {
+            blackPixel_ = alloc_picture(AV_PIX_FMT_GRAY8, 1, 1);
+            for (int i=0; i<AV_NUM_DATA_POINTERS; i++)
+              memset(blackPixel_->data[i], 0, blackPixel_->linesize[i] * blackPixel_->height);
+          }
+          
+          if (blackScaler_ == NULL) {
+            blackScaler_ = sws_getContext(
+              blackPixel_->width, blackPixel_->height, (AVPixelFormat)blackPixel_->format,
+              c->width, c->height, c->pix_fmt,
+              SWS_POINT, NULL, NULL, NULL);
+          }
+
+          sws_scale(blackScaler_,
+                    blackPixel_->data, blackPixel_->linesize,
+                    0, blackPixel_->height, dstFrame->data, dstFrame->linesize);
+        }
+
+        // Center the destination image
+        const int shiftX = FFMAX(0,(c->width - dstW)/2);
+        const int shiftY = FFMAX(0,(c->height - dstH)/2);
+        const int* dstStride = dstFrame->linesize;
+        int p;
+        for (p=0; p<desc->nb_components; p++) {
+          bool is_chroma = p == 1 || p == 2;
+          int shiftx = is_chroma ? FF_CEIL_RSHIFT(shiftX, desc->log2_chroma_w) : shiftX;
+          int shifty = is_chroma ? FF_CEIL_RSHIFT(shiftY, desc->log2_chroma_h) : shiftY;
+          dstSlice_[p] = dstFrame->data[p] + shiftx + shifty * dstStride[p];
+        }
+        for(; p<media::VideoFrame::kMaxPlanes; p++)
+          dstSlice_[p] = 0;
       }
-
-      const uint8_t *const srcSlice[] = { frame.data(0), frame.data(1), frame.data(2) };
-      const int srcStride[] = { frame.row_bytes(0), frame.row_bytes(1), frame.row_bytes(2) };
-
+      
       sws_scale(video_st.sws_ctx,
         srcSlice, srcStride,
-        0, srcH, video_st.frame->data, video_st.frame->linesize);
+        0, srcH, dstSlice_, dstFrame->linesize);
 
     }
     else {
-      const uint8_t *src_data[4] = { frame.data(0), frame.data(1), frame.data(2), 0 };
-      const int src_linesizes[4] = { frame.row_bytes(0), frame.row_bytes(1), frame.row_bytes(2), 0 };
-
-      AVFrame* avFrame = video_st.frame;
-      av_image_copy(avFrame->data, avFrame->linesize, src_data, src_linesizes, (AVPixelFormat)avFrame->format, avFrame->width, avFrame->height);
+      av_image_copy(dstFrame->data, dstFrame->linesize, srcSlice, srcStride,
+                    (AVPixelFormat)dstFrame->format, dstFrame->width, dstFrame->height);
     }
 
     if (videoStart_.is_null()) {
       videoStart_ = estimated_capture_time;
-      video_st.frame->pts = 0;
+      dstFrame->pts = 0;
     }
     else {
       base::TimeDelta dt = estimated_capture_time - videoStart_;
-      video_st.frame->pts = dt.InSecondsF() / c->time_base.num * c->time_base.den;
+      dstFrame->pts = dt.InSecondsF() / c->time_base.num * c->time_base.den;
     }
-    write_video_frame(oc, &video_st, video_st.frame);
+    write_video_frame(oc, &video_st, dstFrame);
     return true;
 
   }
@@ -236,6 +306,9 @@ extern "C" {
       return false;
 
     base::AutoLock lock(lock_);
+    
+    if (blackPixel_)  av_frame_free(&blackPixel_);
+    if (blackScaler_) sws_freeContext(blackScaler_);
 
     /* Write the trailer, if any. The trailer must be written before you
     * close the CodecContexts open when you wrote the header; otherwise

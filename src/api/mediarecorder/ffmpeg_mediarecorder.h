@@ -29,7 +29,6 @@ extern "C" {
   struct AVFormatContext;
   struct AVOutputFormat;
   struct AVCodec;
-  struct AVDictionary;
 
   // a wrapper around a single output AVStream
   typedef struct OutputStream {
@@ -50,8 +49,8 @@ extern "C" {
     short width, short height, char framerate, int AVPixelFormat  //video
     );
 
-  int open_audio(AVFormatContext *oc, AVCodec *codec, OutputStream *ost, AVDictionary *opt_arg, const int samplerate, const int channels);
-  int open_video(AVFormatContext *oc, AVCodec *codec, OutputStream *ost, AVDictionary *opt_arg);
+  int open_audio(AVFormatContext *oc, AVCodec *codec, OutputStream *ost, const int samplerate, const int channels);
+  int open_video(AVFormatContext *oc, AVCodec *codec, OutputStream *ost);
   void close_stream(AVFormatContext *oc, OutputStream *ost);
 
   AVFrame *alloc_picture(int AVPixelFormat, int width, int height);

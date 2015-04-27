@@ -37,7 +37,6 @@ extern "C" {
 struct AVOutputFormat;
 struct AVFormatContext;
 struct AVCodec;
-struct AVDictionary;
 
 class FFMpegMediaRecorder {
   OutputStream video_st, audio_st;
@@ -45,6 +44,10 @@ class FFMpegMediaRecorder {
   AVFormatContext *oc;
   AVCodec *audio_codec, *video_codec;
   bool have_video, have_audio;
+
+  AVFrame* blackPixel_;
+  SwsContext* blackScaler_;
+  uint8_t *dstSlice_[media::VideoFrame::kMaxPlanes];
   
   std::string filename_;
   base::Lock lock_;

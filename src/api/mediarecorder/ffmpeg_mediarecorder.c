@@ -199,7 +199,7 @@ static AVFrame *alloc_audio_frame(enum AVSampleFormat sample_fmt,
   return frame;
 }
 
-int open_audio(AVFormatContext *oc, AVCodec *codec, OutputStream *ost, AVDictionary *opt_arg, const int samplerate, const int channels)
+int open_audio(AVFormatContext *oc, AVCodec *codec, OutputStream *ost, const int samplerate, const int channels)
 {
   AVCodecContext *c;
   int nb_samples;
@@ -209,9 +209,7 @@ int open_audio(AVFormatContext *oc, AVCodec *codec, OutputStream *ost, AVDiction
   c = ost->st->codec;
 
   /* open it */
-  av_dict_copy(&opt, opt_arg, 0);
   ret = avcodec_open2(c, codec, &opt);
-  av_dict_free(&opt);
   if (ret < 0) {
     fprintf(stderr, "Could not open audio codec: %s\n", av_err2str(ret));
     return -1;
@@ -339,17 +337,14 @@ AVFrame *alloc_picture(enum AVPixelFormat pix_fmt, int width, int height)
   return picture;
 }
 
-int open_video(AVFormatContext *oc, AVCodec *codec, OutputStream *ost, AVDictionary *opt_arg)
+int open_video(AVFormatContext *oc, AVCodec *codec, OutputStream *ost)
 {
   int ret;
   AVCodecContext *c = ost->st->codec;
   AVDictionary *opt = NULL;
 
-  av_dict_copy(&opt, opt_arg, 0);
-
   /* open the codec */
   ret = avcodec_open2(c, codec, &opt);
-  av_dict_free(&opt);
   if (ret < 0) {
     fprintf(stderr, "Could not open video codec: %s\n", av_err2str(ret));
     return -1;
