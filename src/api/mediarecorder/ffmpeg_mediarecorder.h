@@ -29,6 +29,8 @@ extern "C" {
   struct AVFormatContext;
   struct AVOutputFormat;
   struct AVCodec;
+  struct AVPacket;
+  struct AVRational;
 
   // a wrapper around a single output AVStream
   typedef struct OutputStream {
@@ -59,12 +61,15 @@ extern "C" {
   * encode one video frame and send it to the muxer
   * return 1 when encoding is finished, 0 otherwise
   */
-  int write_video_frame(AVFormatContext *oc, OutputStream *ost, AVFrame *frame);
+  int write_video_frame(AVFormatContext *oc, OutputStream *ost, AVFrame *frame, AVPacket* pkt);
   /*
   * encode one audio frame and send it to the muxer
   * return 1 when encoding is finished, 0 otherwise
   */
-  int write_audio_frame(AVFormatContext *oc, OutputStream *ost, AVFrame* frame);
+  int write_audio_frame(OutputStream *ost, AVFrame* frame, AVPacket* pkt);
+
+  int write_frame(AVFormatContext *fmt_ctx, const AVRational *time_base, AVStream *st, AVPacket *pkt);
+
 #ifdef __cplusplus
 };
 #endif

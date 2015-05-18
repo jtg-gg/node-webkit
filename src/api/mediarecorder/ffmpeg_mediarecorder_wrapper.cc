@@ -35,8 +35,6 @@ extern "C" {
 
     fmt = NULL;
     oc = NULL;
-    audio_codec = NULL;
-    video_codec = NULL;
     have_video = 0;
     have_audio = 0;
     audioIdx_ = 0;
@@ -57,6 +55,9 @@ extern "C" {
   }
 
   int FFMpegMediaRecorder::InitVideo(short width, short height, char framerate, int bitrate, media::VideoFrame::Format videoFormat) {
+    base::AutoLock lock(lock_);
+    AVCodec *video_codec = NULL;
+
     /* Add the video streams using the default format codecs
     * and initialize the codecs. */
     if (fmt->video_codec != AV_CODEC_ID_NONE) {
@@ -78,6 +79,9 @@ extern "C" {
   }
 
   int FFMpegMediaRecorder::InitAudio(int samplerate, int bitrate, int channels) {
+    base::AutoLock lock(lock_);
+    AVCodec *audio_codec = NULL;
+
     if (fmt->audio_codec != AV_CODEC_ID_NONE) {
       if (add_stream(&audio_st, oc, &audio_codec, 
         fmt->audio_codec, bitrate, samplerate, channels, -1, -1, -1, -1) == 0) {
@@ -131,9 +135,17 @@ extern "C" {
 
     if (!have_video || !fileReady_) return false;
 
-    base::AutoLock lock(lock_);
     const AVCodecContext* c = video_st.st->codec;
     AVFrame* dstFrame = video_st.frame;
+
+    if (videoStart_.is_null()) {
+      videoStart_ = estimated_capture_time;
+      dstFrame->pts = 0;
+    }
+    else {
+      base::TimeDelta dt = estimated_capture_time - videoStart_;
+      dstFrame->pts = dt.InSecondsF() / c->time_base.num * c->time_base.den;
+    }
 
     const int srcW = frame.coded_size().width();
     const int srcH = frame.coded_size().height();
@@ -240,15 +252,12 @@ extern "C" {
                     (AVPixelFormat)dstFrame->format, dstFrame->width, dstFrame->height);
     }
 
-    if (videoStart_.is_null()) {
-      videoStart_ = estimated_capture_time;
-      dstFrame->pts = 0;
+    AVPacket pkt = { 0 };
+    if (write_video_frame(oc, &video_st, dstFrame, &pkt) == 0) {
+      base::AutoLock lock(lock_);
+      if (write_frame(oc, &c->time_base, video_st.st, &pkt) != 0)
+        return false;
     }
-    else {
-      base::TimeDelta dt = estimated_capture_time - videoStart_;
-      dstFrame->pts = dt.InSecondsF() / c->time_base.num * c->time_base.den;
-    }
-    write_video_frame(oc, &video_st, dstFrame);
     return true;
 
   }
@@ -272,11 +281,11 @@ extern "C" {
       frame->pts = 0;
     }
 
-    base::TimeDelta dt = estimated_capture_time - audioStart_;
+    //base::TimeDelta dt = estimated_capture_time - audioStart_;
 
     const int audio_bus_data_size = audio_bus.frames() * sizeof(float);
     const int left_over_data = frame->linesize[0] - audioIdx_;
-    if (audioIdx_ == 0) frame->pts = dt.InSecondsF() * audio_st.st->codec->sample_rate;
+    //if (audioIdx_ == 0) frame->pts = dt.InSecondsF() * audio_st.st->codec->sample_rate;
 
     if (audioIdx_ + audio_bus_data_size < frame->linesize[0]) {
       PutData(frame, audioIdx_, audio_bus, 0, audio_bus_data_size);
@@ -287,12 +296,22 @@ extern "C" {
       PutData(frame, audioIdx_, audio_bus, 0, left_over_data);
     }
 
-    base::AutoLock lock(lock_);
+    AVPacket pkt = { 0 }; // data and size must be 0;
+    if (write_audio_frame(&audio_st, frame, &pkt) == 0) {
+      base::AutoLock lock(lock_);
+      //int64_t scaledPktDts = av_rescale_q(pkt.dts, audio_st.st->codec->time_base, audio_st.st->time_base);
 
-    write_audio_frame(oc, &audio_st, frame);
+      if (write_frame(oc, &audio_st.st->codec->time_base, audio_st.st, &pkt) != 0) {
+        DVLOG(1) << " Error while writing frame\n";
+        //audio_st.st->cur_dts = scaledPktDts;
+      }
+    }
+
     audioIdx_ = audio_bus_data_size - left_over_data;
 
-    frame->pts = dt.InSecondsF() * audio_st.st->codec->sample_rate;
+    //frame->pts is not calculated using dt anymore, since estimated_capture_time is not reliable
+    //frame->pts = dt.InSecondsF() * audio_st.st->codec->sample_rate;
+    frame->pts += frame->linesize[0]/sizeof(float);
     PutData(frame, 0, audio_bus, left_over_data, audioIdx_);
     return true;
 

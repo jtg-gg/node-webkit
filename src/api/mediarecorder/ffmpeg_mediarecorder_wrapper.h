@@ -40,9 +40,8 @@ struct AVCodec;
 
 class FFMpegMediaRecorder {
   OutputStream video_st, audio_st;
-  AVOutputFormat *fmt;
+  const AVOutputFormat *fmt;
   AVFormatContext *oc;
-  AVCodec *audio_codec, *video_codec;
   bool have_video, have_audio;
 
   AVFrame* blackPixel_;

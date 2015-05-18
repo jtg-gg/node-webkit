@@ -63,7 +63,7 @@ static void log_packet(const AVFormatContext *fmt_ctx, const AVPacket *pkt)
 }
 #endif
 
-static int write_frame(AVFormatContext *fmt_ctx, const AVRational *time_base, AVStream *st, AVPacket *pkt)
+int write_frame(AVFormatContext *fmt_ctx, const AVRational *time_base, AVStream *st, AVPacket *pkt)
 {
   /* rescale output packet timestamp values from codec to stream timebase */
   av_packet_rescale_ts(pkt, *time_base, st->time_base);
@@ -255,15 +255,14 @@ int open_audio(AVFormatContext *oc, AVCodec *codec, OutputStream *ost, const int
 * encode one audio frame and send it to the muxer
 * return 1 when encoding is finished, 0 otherwise
 */
-int write_audio_frame(AVFormatContext *oc, OutputStream *ost, AVFrame* frame)
+int write_audio_frame(OutputStream *ost, AVFrame* frame, AVPacket* pkt)
 {
   AVCodecContext *c;
-  AVPacket pkt = { 0 }; // data and size must be 0;
   int ret;
   int got_packet;
   int dst_nb_samples;
 
-  av_init_packet(&pkt);
+  av_init_packet(pkt);
   c = ost->st->codec;
 
   if (frame && ost->swr_ctx) {
@@ -293,22 +292,13 @@ int write_audio_frame(AVFormatContext *oc, OutputStream *ost, AVFrame* frame)
     frame = ost->frame;
   }
 
-  ret = avcodec_encode_audio2(c, &pkt, frame, &got_packet);
+  ret = avcodec_encode_audio2(c, pkt, frame, &got_packet);
   if (ret < 0) {
     fprintf(stderr, "Error encoding audio frame: %s\n", av_err2str(ret));
     return -1;
   }
 
-  if (got_packet) {
-    ret = write_frame(oc, &c->time_base, ost->st, &pkt);
-    if (ret < 0) {
-      fprintf(stderr, "Error while writing audio frame: %s\n",
-        av_err2str(ret));
-      return -1;
-    }
-  }
-
-  return (frame || got_packet) ? 0 : 1;
+  return got_packet ? 0 : 1;
 }
 
 /**************************************************************/
@@ -365,7 +355,7 @@ int open_video(AVFormatContext *oc, AVCodec *codec, OutputStream *ost)
 * encode one video frame and send it to the muxer
 * return 1 when encoding is finished, 0 otherwise
 */
- int write_video_frame(AVFormatContext *oc, OutputStream *ost, AVFrame *frame)
+int write_video_frame(AVFormatContext *oc, OutputStream *ost, AVFrame *frame, AVPacket* pkt)
 {
   int ret = -1;
   AVCodecContext *c;
@@ -375,38 +365,26 @@ int open_video(AVFormatContext *oc, AVCodec *codec, OutputStream *ost)
 
   if (oc->oformat->flags & AVFMT_RAWPICTURE) {
     /* a hack to avoid data copy with some raw video muxers */
-    AVPacket pkt;
-    av_init_packet(&pkt);
+    av_init_packet(pkt);
 
     if (!frame)
       return 1;
 
-    pkt.flags |= AV_PKT_FLAG_KEY;
-    pkt.stream_index = ost->st->index;
-    pkt.data = (uint8_t *)frame;
-    pkt.size = sizeof(AVPicture);
+    pkt->flags |= AV_PKT_FLAG_KEY;
+    pkt->data = (uint8_t *)frame;
+    pkt->size = sizeof(AVPicture);
 
-    pkt.pts = pkt.dts = frame->pts;
-    av_packet_rescale_ts(&pkt, c->time_base, ost->st->time_base);
-
-    ret = av_interleaved_write_frame(oc, &pkt);
+    pkt->pts = pkt->dts = frame->pts;
+    got_packet = 1;
   }
   else {
-    AVPacket pkt = { 0 };
-    av_init_packet(&pkt);
+    av_init_packet(pkt);
 
     /* encode the image */
-    ret = avcodec_encode_video2(c, &pkt, frame, &got_packet);
+    ret = avcodec_encode_video2(c, pkt, frame, &got_packet);
     if (ret < 0) {
       fprintf(stderr, "Error encoding video frame: %s\n", av_err2str(ret));
       return -1;
-    }
-
-    if (got_packet) {
-      ret = write_frame(oc, &c->time_base, ost->st, &pkt);
-    }
-    else {
-      ret = 0;
     }
   }
 
