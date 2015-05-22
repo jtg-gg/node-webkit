@@ -13,6 +13,8 @@
 #include "net/base/auth.h"
 #include "net/url_request/url_request.h"
 #include "ui/gfx/text_elider.h"
+#include "ui/base/l10n/l10n_util.h"
+#include "chrome/grit/generated_resources.h"
 
 namespace content {
 
@@ -80,15 +82,9 @@ void ShellLoginDialog::PrepDialog(const base::string16& host,
   base::string16 elided_realm;
   gfx::ElideString(realm, 120, &elided_realm);
 
-  base::string16 explanation =
-      base::ASCIIToUTF16("The server ") + host +
-      base::ASCIIToUTF16(" requires a username and password.");
-
-  if (!elided_realm.empty()) {
-    explanation += base::ASCIIToUTF16(" The server says: ");
-    explanation += elided_realm;
-    explanation += base::ASCIIToUTF16(".");
-  }
+  base::string16 explanation = elided_realm.empty() ? 
+    l10n_util::GetStringFUTF16(IDS_LOGIN_DIALOG_DESCRIPTION_NO_REALM, host) :
+    l10n_util::GetStringFUTF16(IDS_LOGIN_DIALOG_DESCRIPTION, host, elided_realm);
 
   PlatformCreateDialog(explanation);
 }

@@ -35,6 +35,7 @@
 #include "content/public/browser/web_contents.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/views/widget/widget.h"
+#include "chrome/grit/generated_resources.h"
 
 using web_modal::WebContentsModalDialogManager;
 using web_modal::WebContentsModalDialogManagerDelegate;
@@ -116,12 +117,12 @@ void ShellLoginDialog::PlatformRequestCancelled() {
 base::string16 ShellLoginDialog::GetDialogButtonLabel(
       ui::DialogButton button) const {
   if (button == ui::DIALOG_BUTTON_OK)
-    return base::ASCIIToUTF16("Log In");
+    return l10n_util::GetStringUTF16(IDS_LOGIN_DIALOG_OK_BUTTON_LABEL);
   return DialogDelegate::GetDialogButtonLabel(button);
 }
 
 base::string16 ShellLoginDialog::GetWindowTitle() const {
-  return base::ASCIIToUTF16("Authentication Required");
+  return l10n_util::GetStringUTF16(IDS_LOGIN_DIALOG_TITLE);
 }
 
 void ShellLoginDialog::WindowClosing() {

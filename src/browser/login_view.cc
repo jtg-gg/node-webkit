@@ -10,6 +10,7 @@
 #include "ui/views/controls/textfield/textfield.h"
 #include "ui/views/layout/grid_layout.h"
 #include "ui/views/layout/layout_constants.h"
+#include "chrome/grit/generated_resources.h"
 
 static const int kMessageWidth = 320;
 static const int kTextfieldStackHorizontalSpacing = 30;
@@ -22,8 +23,8 @@ using views::GridLayout;
 LoginView::LoginView(const base::string16& explanation)
     : username_field_(new views::Textfield()),
       password_field_(new views::Textfield()),
-      username_label_(new views::Label(base::ASCIIToUTF16("Username"))),
-      password_label_(new views::Label(base::ASCIIToUTF16("Password"))),
+      username_label_(new views::Label(l10n_util::GetStringUTF16(IDS_LOGIN_DIALOG_USERNAME_FIELD))),
+      password_label_(new views::Label(l10n_util::GetStringUTF16(IDS_LOGIN_DIALOG_PASSWORD_FIELD))),
       message_label_(new views::Label(explanation)) {
   password_field_->SetTextInputType(ui::TEXT_INPUT_TYPE_PASSWORD);
   message_label_->SetMultiLine(true);
