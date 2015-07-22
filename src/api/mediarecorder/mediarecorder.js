@@ -35,6 +35,8 @@ MediaRecorder.prototype.setAudioURL = function (stream) {
 MediaRecorder.prototype.start = function (filename, options) {
     if (!options.hasOwnProperty('audioBitRate'))
         options.audioBitRate = 0;
+    if (!options.hasOwnProperty('audioSampleRate'))
+        options.audioSampleRate = 0;
     if (!options.hasOwnProperty('videoBitRate'))
         options.videoBitRate = 0;
     if (!options.hasOwnProperty('frameRate'))
@@ -45,7 +47,7 @@ MediaRecorder.prototype.start = function (filename, options) {
         options.height = 0;
 
     return nw.callObjectMethodSync(this, 'Start', [filename,
-        options.audioBitRate, options.videoBitRate,
+        options.audioBitRate, options.audioSampleRate, options.videoBitRate,
         options.frameRate, options.width, options.height])[0];
 };
 

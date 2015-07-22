@@ -42,7 +42,7 @@ class FFMpegMediaRecorder {
   OutputStream video_st, audio_st;
   const AVOutputFormat *fmt;
   AVFormatContext *oc;
-  bool have_video, have_audio;
+  bool have_video, have_audio, audio_only;
 
   AVFrame* blackPixel_;
   SwsContext* blackScaler_;
@@ -50,7 +50,6 @@ class FFMpegMediaRecorder {
   
   std::string filename_;
   base::Lock lock_;
-  int audioIdx_;
   base::TimeTicks videoStart_;
   base::TimeTicks audioStart_;
   bool fileReady_;
@@ -65,7 +64,7 @@ public:
   
   int Init(const char* filename);
   int InitVideo(short width, short height, char framerate, int bitrate, media::VideoFrame::Format pixelFormat);
-  int InitAudio(int samplerate, int bitrate, int channels);
+  int InitAudio(int samplerate, int targetsampleRate, int bitrate, int channels, int frame_size);
   
   bool UpdateVideo(const media::VideoFrame& frame,
     const media::VideoCaptureFormat& format,

@@ -51,7 +51,7 @@ extern "C" {
     short width, short height, char framerate, int AVPixelFormat  //video
     );
 
-  int open_audio(AVFormatContext *oc, AVCodec *codec, OutputStream *ost, const int samplerate, const int channels);
+  int open_audio(AVFormatContext *oc, AVCodec *codec, OutputStream *ost, const int samplerate, const int channels, const int frame_size);
   int open_video(AVFormatContext *oc, AVCodec *codec, OutputStream *ost);
   void close_stream(AVFormatContext *oc, OutputStream *ost);
 
@@ -62,11 +62,15 @@ extern "C" {
   * return 1 when encoding is finished, 0 otherwise
   */
   int write_video_frame(AVFormatContext *oc, OutputStream *ost, AVFrame *frame, AVPacket* pkt);
+
   /*
-  * encode one audio frame and send it to the muxer
-  * return 1 when encoding is finished, 0 otherwise
+  * encode one audio frame (tmp_frame) until it returns a packet
+  * srcNumSamples should be tmp_frame->nb_samples, 0 when doing loop, to empty the buffer
+  * return 1 when packet is exist and the buffer not yet empty
+  * return 0 when packet is exist and the buffer is "empty"
+  * return -1 otherwise / error
   */
-  int write_audio_frame(OutputStream *ost, AVFrame* frame, AVPacket* pkt);
+  int write_audio_frame(OutputStream *ost, AVPacket* pkt, int srcNumSamples);
 
   int write_frame(AVFormatContext *fmt_ctx, const AVRational *time_base, AVStream *st, AVPacket *pkt);
 

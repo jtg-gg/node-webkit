@@ -71,10 +71,11 @@ namespace nwapi{
       ffmpeg_.Init(filename);
       
       args.GetInteger(1, &audioBitRate_);
-      args.GetInteger(2, &videoBitRate_);
-      args.GetInteger(3, &frameRate_);
-      args.GetInteger(4, &width_);
-      args.GetInteger(5, &height_);
+      args.GetInteger(2, &audioSampleRate_);
+      args.GetInteger(3, &videoBitRate_);
+      args.GetInteger(4, &frameRate_);
+      args.GetInteger(5, &width_);
+      args.GetInteger(6, &height_);
 
       if (!videoTrack_.isNull())
         MediaStreamVideoSink::AddToVideoTrack(
@@ -121,7 +122,8 @@ namespace nwapi{
 
     void OnSetFormat(const media::AudioParameters& params) override {
       const int bitRate = audioBitRate_ ? audioBitRate_ : params.sample_rate() * 2;
-      ffmpeg_.InitAudio(params.sample_rate(), bitRate, params.channels());
+      const int audioSampleRate = audioSampleRate_ ? audioSampleRate_ : params.sample_rate();
+      ffmpeg_.InitAudio(params.sample_rate(), audioSampleRate, bitRate, params.channels(), params.frames_per_buffer());
     }
 
     friend class base::RefCountedThreadSafe<MediaRecorderSink>;
@@ -129,7 +131,7 @@ namespace nwapi{
       DVLOG(3) << "MediaRecorderSink dtor().";
     }
 
-    int audioBitRate_, videoBitRate_, frameRate_, width_, height_;
+    int audioBitRate_, audioSampleRate_, videoBitRate_, frameRate_, width_, height_;
     blink::WebMediaStreamTrack videoTrack_, audioTrack_;
     FFMpegMediaRecorder ffmpeg_;
     DISALLOW_COPY_AND_ASSIGN(MediaRecorderSink);
@@ -171,6 +173,7 @@ namespace nwapi{
 
       MediaRecorderSink* mrs = new MediaRecorderSink(base::UTF16ToUTF8(filename).c_str(), video, audio, args);
       mrsMap.insert(std::pair<MRSMap::key_type, MRSMap::mapped_type>(object_id, mrs));
+      mrs->AddRef();
 
       return true;
     }
@@ -178,6 +181,7 @@ namespace nwapi{
       MRSMap::iterator i = mrsMap.find(object_id);
       if (i != mrsMap.end()) {
         i->second->Stop();
+        i->second->Release();
         mrsMap.erase(i);
         return true;
       }

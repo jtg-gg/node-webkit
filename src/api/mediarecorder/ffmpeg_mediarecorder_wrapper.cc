@@ -37,7 +37,7 @@ extern "C" {
     oc = NULL;
     have_video = 0;
     have_audio = 0;
-    audioIdx_ = 0;
+    audio_only = 0;
     fileReady_ = false;
     lastSrcW_ = lastSrcH_ = 0;
     
@@ -78,21 +78,27 @@ extern "C" {
     return have_video;
   }
 
-  int FFMpegMediaRecorder::InitAudio(int samplerate, int bitrate, int channels) {
+  int FFMpegMediaRecorder::InitAudio(int samplerate, int targetSampleRate, int bitrate, int channels, int frame_size) {
     base::AutoLock lock(lock_);
     AVCodec *audio_codec = NULL;
+    const bool useQuality = bitrate >=0 && bitrate <= 10;
 
     if (fmt->audio_codec != AV_CODEC_ID_NONE) {
       if (add_stream(&audio_st, oc, &audio_codec, 
-        fmt->audio_codec, bitrate, samplerate, channels, -1, -1, -1, -1) == 0) {
+        fmt->audio_codec, useQuality ? 0 : bitrate, targetSampleRate, channels, -1, -1, -1, -1) == 0) {
         have_audio = 1;
       }
     }
+    
+    if (useQuality) {
+      audio_st.st->codec->flags |= CODEC_FLAG_QSCALE;
+      audio_st.st->codec->global_quality = FF_QP2LAMBDA * bitrate;
+    }
 
     if (have_audio)
-      have_audio = open_audio(oc, audio_codec, &audio_st, samplerate, channels) == 0;
+      have_audio = open_audio(oc, audio_codec, &audio_st, samplerate, channels, frame_size) == 0;
 
-    if (have_audio && have_video)
+    if (have_audio && (have_video || audio_only))
       InitFile();
 
     return have_audio;
@@ -107,6 +113,7 @@ extern "C" {
     }
 
     fmt = oc->oformat;
+    audio_only = strcmp(fmt->name, "ogg") == 0;
 
     return 0;
   }
@@ -265,8 +272,10 @@ extern "C" {
   // copy audio data from audiobus to avframe
   static void PutData(AVFrame* frame, int frameIdx, const media::AudioBus& audio_bus, int audioBusIdx, int size){
     const int channels = std::min(AV_NUM_DATA_POINTERS, audio_bus.channels());
-    for (int i = 0; i < channels; i++)
+    for (int i = 0; i < channels; i++) {
+      assert(frameIdx + size <= frame->linesize[0]);
       memcpy(frame->data[i] + frameIdx, &audio_bus.channel(i)[audioBusIdx / sizeof(float)], size);
+    }
   }
 
   bool FFMpegMediaRecorder::UpdateAudio(const media::AudioBus& audio_bus,
@@ -274,48 +283,37 @@ extern "C" {
  
     if (!have_audio || !fileReady_) return false;
 
-    AVFrame* frame = audio_st.tmp_frame;
-
     if (audioStart_.is_null()) {
+      // take note you can't use video capture time for audio, they differ by 30 secs 
+      // due to audio delay compensation
       audioStart_ = estimated_capture_time;
-      frame->pts = 0;
+      audio_st.frame->pts = 0;
     }
 
     //base::TimeDelta dt = estimated_capture_time - audioStart_;
+    int left_over_data = audio_st.tmp_frame->linesize[0] - 0;
+    PutData(audio_st.tmp_frame, 0, audio_bus, 0, left_over_data);
 
-    const int audio_bus_data_size = audio_bus.frames() * sizeof(float);
-    const int left_over_data = frame->linesize[0] - audioIdx_;
-    //if (audioIdx_ == 0) frame->pts = dt.InSecondsF() * audio_st.st->codec->sample_rate;
+    int res = -1;
+    do {
+      AVPacket pkt = { 0 }; // data and size must be 0;
+      res = write_audio_frame(&audio_st, &pkt, res > 0 ? 0 : audio_st.tmp_frame->nb_samples);
+      if (res >= 0) {
+        base::AutoLock lock(lock_);
+        //int64_t scaledPktDts = av_rescale_q(pkt.dts, audio_st.st->codec->time_base, audio_st.st->time_base);
 
-    if (audioIdx_ + audio_bus_data_size < frame->linesize[0]) {
-      PutData(frame, audioIdx_, audio_bus, 0, audio_bus_data_size);
-      audioIdx_ += audio_bus_data_size;
-      return true;
-    }
-    else {
-      PutData(frame, audioIdx_, audio_bus, 0, left_over_data);
-    }
-
-    AVPacket pkt = { 0 }; // data and size must be 0;
-    if (write_audio_frame(&audio_st, frame, &pkt) == 0) {
-      base::AutoLock lock(lock_);
-      //int64_t scaledPktDts = av_rescale_q(pkt.dts, audio_st.st->codec->time_base, audio_st.st->time_base);
-
-      if (write_frame(oc, &audio_st.st->codec->time_base, audio_st.st, &pkt) != 0) {
-        DVLOG(1) << " Error while writing frame\n";
-        //audio_st.st->cur_dts = scaledPktDts;
+        // write_frame is most likely the encoding bottlenect, I/O bound
+        if (write_frame(oc, &audio_st.st->codec->time_base, audio_st.st, &pkt) != 0) {
+          DVLOG(1) << " Error while writing frame\n";
+          //audio_st.st->cur_dts = scaledPktDts;
+        }
       }
-    }
+    } while (res > 0);
 
-    audioIdx_ = audio_bus_data_size - left_over_data;
-
-    //frame->pts is not calculated using dt anymore, since estimated_capture_time is not reliable
-    //frame->pts = dt.InSecondsF() * audio_st.st->codec->sample_rate;
-    frame->pts += frame->linesize[0]/sizeof(float);
-    PutData(frame, 0, audio_bus, left_over_data, audioIdx_);
     return true;
 
   }
+
   FFMpegMediaRecorder::~FFMpegMediaRecorder() {
     Stop();
   }
