@@ -106,10 +106,6 @@ class ShellLoginDialog : public ResourceDispatcherHostLoginDelegate {
   // Threading: IO thread.
   scoped_refptr<net::AuthChallengeInfo> auth_info_;
 
-  // The request that wants login data.
-  // Threading: IO thread.
-  net::URLRequest* request_;
-
 #if defined(OS_MACOSX)
   // Threading: UI thread.
   ShellLoginDialogHelper* helper_;  // owned
@@ -124,6 +120,9 @@ class ShellLoginDialog : public ResourceDispatcherHostLoginDelegate {
 
   views::Widget* dialog_;
 #endif
+  // The request that wants login data.
+  // Threading: IO thread.
+  net::URLRequest* request_;
 };
 
 }  // namespace content

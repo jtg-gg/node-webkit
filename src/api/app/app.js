@@ -21,6 +21,13 @@
 var argv, fullArgv, dataPath, manifest;
 var v8_util = process.binding('v8_util');
 
+var appEvent = null;
+
+function AppEvent() {
+  nw.allocateObject(this, {});
+}
+require('util').inherits(AppEvent, exports.Base);
+
 function App() {
 }
 require('util').inherits(App, exports.Base);
@@ -71,6 +78,86 @@ App.prototype.getProxyForURL = function (url) {
 
 App.prototype.setProxyConfig = function (proxy_config, pac_url) {
   return nw.callStaticMethodSync('App', 'SetProxyConfig', [ proxy_config, pac_url ]);
+}
+
+// Route events.
+AppEvent.prototype.handleEvent = function (ev) {
+  if (ev.startsWith('getHttpAuth') && arguments.length == 5) {
+    var url = arguments[1];
+    var realm = arguments[2];
+    var scheme = arguments[3];
+    var deep = arguments[4];
+
+    if (deep == 0) {
+      var http = new window.XMLHttpRequest();
+      http.open("head", url, true);
+      http.onreadystatechange = function (aEvt) {
+        if (http.readyState == 4) {
+          if(http.status != 407)
+            process['_nw_app'].getHttpAuth(url, realm, scheme, null, deep + 1, ev);
+          else {
+            arguments = [ev, url, '', ''];
+            appEvent.emit.apply(appEvent, arguments);
+          }
+        }
+      };
+      http.send();
+      return;
+    }
+    arguments = [ev, url, '', ''];
+    this.emit.apply(this, arguments);
+    return;
+  }
+
+  // Call parent.
+  this.emit.apply(this, arguments);
+}
+
+App.prototype.getHttpAuth = function (url, realm, scheme, callback, deep, token) {
+  if (appEvent == null) {
+    appEvent = new AppEvent();
+  }
+  
+  deep = typeof deep !== 'undefined' ? deep : 0;
+  if (typeof token !== 'undefined')
+    token = token;
+  else
+    token = 'getHttpAuth ' + url;
+
+  // event token already used, return false, wait until token is free
+  /*if (deep == 0 && appEvent._events && appEvent._events[token]) {
+    throw new TypeError("please wait for existing " + token);
+    return false;
+  }*/
+
+  if (nw.callStaticMethodSync('App', 'GetHttpAuth', [appEvent.id, url, realm, scheme, deep, token])[0]
+    && callback != null ) { // callback null check must be after callStaticMethod
+    appEvent.once(token, callback);
+    return true;
+  }
+  return false;
+}
+
+App.prototype.getHttpProxy = function (url, callback) {
+  if (appEvent == null) {
+    appEvent = new AppEvent();
+  }
+  var token = 'getHttpProxy ' + url;
+  // event token already used, return false, wait until token is free
+  /*if (appEvent._events && appEvent._events[token]) {
+    throw new TypeError("please wait for existing " + token);
+    return false;
+  }*/
+
+  if (callback != null && 
+    nw.callStaticMethodSync('App', 'GetHttpProxy', [appEvent.id, url, token])[0]) {
+    appEvent.once(token, callback);
+    var http = new window.XMLHttpRequest();
+    http.open("head", url, true);
+    http.send();
+    return true;
+  }
+  return false;
 }
 
 App.prototype.addOriginAccessWhitelistEntry = function(sourceOrigin, destinationProtocol, destinationHost, allowDestinationSubdomains) {

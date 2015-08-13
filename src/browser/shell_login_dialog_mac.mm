@@ -12,6 +12,9 @@
 #include "base/strings/sys_string_conversions.h"
 #include "content/public/browser/browser_thread.h"
 #import "ui/base/cocoa/nib_loading.h"
+#include "ui/base/l10n/l10n_util.h"
+#include "ui/strings/grit/ui_strings.h"
+#include "chrome/grit/generated_resources.h"
 
 namespace {
 
@@ -95,9 +98,10 @@ void ShellLoginDialog::PlatformCreateDialog(const base::string16& message) {
   NSAlert* alert = [helper_ alert];
   [alert setDelegate:helper_];
   [alert setInformativeText:base::SysUTF16ToNSString(message)];
-  [alert setMessageText:@"Please log in."];
-  [alert addButtonWithTitle:@"OK"];
-  NSButton* other = [alert addButtonWithTitle:@"Cancel"];
+
+  [alert setMessageText:base::SysUTF16ToNSString(l10n_util::GetStringUTF16(IDS_LOGIN_DIALOG_TITLE))];
+  [alert addButtonWithTitle:base::SysUTF16ToNSString(l10n_util::GetStringUTF16(IDS_LOGIN_DIALOG_OK_BUTTON_LABEL))];
+  NSButton* other = [alert addButtonWithTitle:base::SysUTF16ToNSString(l10n_util::GetStringUTF16(IDS_APP_CANCEL))];
   [other setKeyEquivalent:@"\e"];
   [alert
       beginSheetModalForWindow:nil  // nil here makes it app-modal
