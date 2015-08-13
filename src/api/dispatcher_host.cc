@@ -175,8 +175,10 @@ void DispatcherHost::OnAllocateObject(int object_id,
     objects_registry_.AddWithID(new Shortcut(object_id, weak_ptr_factory_.GetWeakPtr(), option), object_id);
   } else if (type == "Screen") {
     objects_registry_.AddWithID(new EventListener(object_id, weak_ptr_factory_.GetWeakPtr(), option), object_id);
-  }else if (type == "DesktopCaptureMonitor") {
+  } else if (type == "DesktopCaptureMonitor") {
 	  objects_registry_.AddWithID(new DesktopCaptureMonitor(object_id, weak_ptr_factory_.GetWeakPtr(), option), object_id);
+  } else if (type == "AppEvent") {
+    objects_registry_.AddWithID(new EventListener(object_id, weak_ptr_factory_.GetWeakPtr(), option), object_id);
   } else {
     LOG(ERROR) << "Allocate an object of unknown type: " << type;
     objects_registry_.AddWithID(new Base(object_id, weak_ptr_factory_.GetWeakPtr(), option), object_id);

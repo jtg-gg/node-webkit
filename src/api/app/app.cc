@@ -36,6 +36,7 @@
 
 #include "content/nw/src/api/api_messages.h"
 #include "content/nw/src/api/dispatcher_host.h"
+#include "content/nw/src/api/event/event.h"
 #include "content/nw/src/api/shortcut/global_shortcut_listener.h"
 #include "content/nw/src/api/shortcut/shortcut.h"
 #include "content/nw/src/breakpad_linux.h"
@@ -48,6 +49,8 @@
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/browser/render_process_host.h"
+#include "net/http/http_transaction_factory.h"
+#include "net/http/http_auth.h"
 #include "net/proxy/proxy_config.h"
 #include "net/proxy/proxy_config_service_fixed.h"
 #include "net/proxy/proxy_service.h"
@@ -99,6 +102,55 @@ void SetProxyConfigCallback(
   proxy_service->ResetConfigService(
       new net::ProxyConfigServiceFixed(proxy_config));
   done->Signal();
+}
+
+void GetHttpAuthResultCallback(
+    EventListener* event_listener,
+    const base::string16 user, const base::string16 password,
+    const std::string url, const std::string realm, const std::string scheme, int deep) {
+  
+  base::ListValue results;
+  if (user.length() && password.length()) {
+    results.AppendString(user);
+    results.AppendString(password);
+  } else {
+    results.AppendString(url);
+    results.AppendString(realm);
+    results.AppendString(scheme);
+    results.AppendInteger(deep);
+  }
+  event_listener->dispatcher_host()->SendEvent(event_listener, "getHttpAuth", results);
+}
+
+void GetHttpAuthCallback(
+    net::URLRequestContextGetter* url_request_context_getter,
+    EventListener* event_listener,
+    const std::string url, std::string realm, std::string scheme, int deep) {
+  net::HttpAuthCache* auth_cache =
+    url_request_context_getter->GetURLRequestContext()->http_transaction_factory()->GetSession()->http_auth_cache();
+  
+  net::HttpAuth::Scheme httpScheme;
+  for(int i=0; i<net::HttpAuth::AUTH_SCHEME_MAX; i++) {
+    httpScheme = static_cast<net::HttpAuth::Scheme>(i);
+    if(scheme.compare(net::HttpAuth::SchemeToString(httpScheme))==0)
+      break;
+  }
+  
+  net::AuthCredentials credentials;
+  const GURL gurl = GURL(url);
+  net::HttpAuthCache::Entry* entry = auth_cache->Lookup(gurl.GetOrigin(), realm, httpScheme);
+  if (entry == NULL)
+    entry = auth_cache->LookupByPath(gurl.GetOrigin(), gurl.path());
+
+  if (entry) {
+    credentials = entry->credentials();
+    realm = entry->realm();
+    scheme = net::HttpAuth::SchemeToString(entry->scheme());
+  }
+
+  BrowserThread::PostTask(
+    BrowserThread::UI, FROM_HERE,
+    base::Bind(&GetHttpAuthResultCallback, event_listener, credentials.username(), credentials.password(), url, realm, scheme, deep));
 }
 
 }  // namespace
@@ -206,6 +258,28 @@ void App::Call(Shell* shell,
     arguments.GetString(0, &proxy_config);
     arguments.GetString(1, &pac_url);
     SetProxyConfig(GetRenderProcessHost(), proxy_config, pac_url);
+    return;
+  } else if (method == "GetHttpAuth") {
+    int object_id = 0;
+    arguments.GetInteger(0, &object_id);
+    EventListener* event_listener = dispatcher_host->GetApiObject<EventListener>(object_id);
+
+    std::string url, realm, scheme;
+    int deep;
+    arguments.GetString(1, &url);
+    arguments.GetString(2, &realm);
+    arguments.GetString(3, &scheme);
+    arguments.GetInteger(4, &deep);
+    
+    net::URLRequestContextGetter* context_getter =
+      GetRenderProcessHost()->GetBrowserContext()->
+      GetRequestContextForRenderProcess(GetRenderProcessHost()->GetID());
+    
+    BrowserThread::PostTask(
+        BrowserThread::IO, FROM_HERE,
+        base::Bind(&GetHttpAuthCallback, make_scoped_refptr(context_getter),
+          event_listener, url, realm, scheme, deep));
+    result->AppendBoolean(true);
     return;
   } else if (method == "DoneMenuShow") {
     dispatcher_host->quit_run_loop();
