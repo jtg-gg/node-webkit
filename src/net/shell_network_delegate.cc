@@ -2,12 +2,15 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include "content/nw/src/api/dispatcher_host.h"
+#include "content/nw/src/api/event/event.h"
 #include "content/nw/src/net/shell_network_delegate.h"
 
 #include "extensions/browser/info_map.h"
 #include "extensions/browser/api/web_request/web_request_api.h"
 #include "net/base/net_errors.h"
 #include "net/base/static_cookie_policy.h"
+#include "net/proxy/proxy_info.h"
 #include "net/url_request/url_request.h"
 
 namespace content {
@@ -52,12 +55,28 @@ void ShellNetworkDelegate::OnSendHeaders(
       browser_context_, extension_info_map_.get(), request, headers);
 }
 
+void GetHttpProxyResultCallback(
+  nwapi::EventListener* event_listener,
+  const std::string token,
+  const std::string url,
+  const std::string proxy) {
+
+  base::ListValue results;
+  results.AppendString(url);
+  results.AppendString(proxy);
+
+  event_listener->dispatcher_host()->SendEvent(event_listener, token, results);
+}
+
 int ShellNetworkDelegate::OnHeadersReceived(
     net::URLRequest* request,
     const net::CompletionCallback& callback,
     const net::HttpResponseHeaders* original_response_headers,
     scoped_refptr<net::HttpResponseHeaders>* override_response_headers,
     GURL* allowed_unsafe_redirect_url) {
+
+  HandleURLProxyListener(request);
+
   return ExtensionWebRequestEventRouter::GetInstance()->OnHeadersReceived(
       browser_context_,
       extension_info_map_.get(),
@@ -84,6 +103,8 @@ void ShellNetworkDelegate::OnRawBytesRead(const net::URLRequest& request,
 }
 
 void ShellNetworkDelegate::OnCompleted(net::URLRequest* request, bool started) {
+  HandleURLProxyListener(request, NULL, true);
+
   if (request->status().status() == net::URLRequestStatus::SUCCESS) {
     bool is_redirect = request->response_headers() &&
         net::HttpResponseHeaders::IsRedirectResponseCode(
@@ -119,6 +140,7 @@ ShellNetworkDelegate::AuthRequiredResponse ShellNetworkDelegate::OnAuthRequired(
     const net::AuthChallengeInfo& auth_info,
     const AuthCallback& callback,
     net::AuthCredentials* credentials) {
+  HandleURLProxyListener(request, &auth_info.challenger);
   return ExtensionWebRequestEventRouter::GetInstance()->OnAuthRequired(
       browser_context_, extension_info_map_.get(), request, auth_info, callback,
       credentials);
@@ -157,4 +179,40 @@ bool ShellNetworkDelegate::OnCanThrottleRequest(
   return false;
 }
 
+bool ShellNetworkDelegate::AddURLProxyListener(nwapi::EventListener* event_listener, 
+  const std::string& url, const std::string& token) {
+  std::map<const std::string, EventToken>::iterator i = url_proxy_map_.find(url);
+  if (i == url_proxy_map_.end()) {
+    EventToken eventToken;
+    eventToken.event_listener_ = event_listener;
+    eventToken.token_ = token;
+    eventToken.proxy_ = "";
+    url_proxy_map_.insert(std::pair<const std::string, EventToken>(url, eventToken));
+    return true;
+  }
+  // url aready exist, replace the token event in the map
+  i->second.event_listener_ = event_listener;
+  i->second.token_ = token;
+  return false;
+}
+
+void ShellNetworkDelegate::HandleURLProxyListener(const net::URLRequest* request, const net::HostPortPair* proxy, bool run_callback) {
+  const std::string urlSpec = request->original_url().spec();
+  std::map<const std::string, EventToken>::iterator i = url_proxy_map_.find(urlSpec);
+
+  if (i != url_proxy_map_.end()) {
+    if (proxy == NULL) proxy = &request->proxy_server();
+    if (proxy->HostForURL().length()) i->second.proxy_ = proxy->ToString();
+
+    if (run_callback) {
+      BrowserThread::PostTask(
+        BrowserThread::UI, FROM_HERE,
+        base::Bind(&GetHttpProxyResultCallback, i->second.event_listener_,
+          i->second.token_, urlSpec, i->second.proxy_)
+      );
+    
+      url_proxy_map_.erase(i);
+    }
+  }
+}
 }  // namespace content

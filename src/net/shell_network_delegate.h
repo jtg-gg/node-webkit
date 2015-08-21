@@ -15,6 +15,10 @@ class InfoMap;
 
 }
 
+namespace nwapi {
+  class EventListener;
+}
+
 namespace content {
 
 class ShellNetworkDelegate : public net::NetworkDelegateImpl {
@@ -23,6 +27,8 @@ class ShellNetworkDelegate : public net::NetworkDelegateImpl {
   ~ShellNetworkDelegate() override;
 
   static void SetAcceptAllCookies(bool accept);
+
+  bool AddURLProxyListener(nwapi::EventListener* event_listener, const std::string& url, const std::string& token);
 
  private:
   // net::NetworkDelegate implementation.
@@ -63,6 +69,14 @@ class ShellNetworkDelegate : public net::NetworkDelegateImpl {
 
   void* browser_context_;
   scoped_refptr<extensions::InfoMap> extension_info_map_;
+
+  struct EventToken {
+    nwapi::EventListener* event_listener_;
+    std::string token_;
+    std::string proxy_;
+  };
+  std::map<const std::string, EventToken> url_proxy_map_;
+  void HandleURLProxyListener(const net::URLRequest* request, const net::HostPortPair* proxy = NULL, bool run_callback = false);
 
   DISALLOW_COPY_AND_ASSIGN(ShellNetworkDelegate);
 };
