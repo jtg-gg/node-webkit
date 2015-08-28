@@ -37,6 +37,7 @@ extern "C" {
     AVStream *st;
 
     AVFrame *frame;
+    int frame_sample;
     AVFrame *tmp_frame;
 
     struct SwsContext *sws_ctx;
@@ -68,7 +69,8 @@ extern "C" {
   * srcNumSamples should be tmp_frame->nb_samples, 0 when doing loop, to empty the buffer
   * return 1 when packet is exist and the buffer not yet empty
   * return 0 when packet is exist and the buffer is "empty"
-  * return -1 otherwise / error
+  * return -1 error
+  * return -2 to break the caller loop (dest nb_samples > src)
   */
   int write_audio_frame(OutputStream *ost, AVPacket* pkt, int srcNumSamples);
 

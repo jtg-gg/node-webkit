@@ -113,7 +113,10 @@ extern "C" {
     }
 
     fmt = oc->oformat;
-    audio_only = strcmp(fmt->name, "ogg") == 0;
+    
+    const char *dot = strrchr(filename, '.');
+    const char *ext = (!dot || dot == filename) ? "" : dot + 1;
+    audio_only = strcmp(ext, "ogg") == 0 || strcmp(ext, "m4a") == 0;
 
     return 0;
   }
@@ -151,7 +154,9 @@ extern "C" {
     }
     else {
       base::TimeDelta dt = estimated_capture_time - videoStart_;
-      dstFrame->pts = dt.InSecondsF() / c->time_base.num * c->time_base.den;
+      int pts = round(dt.InSecondsF() / c->time_base.num * c->time_base.den);
+      if (pts <= dstFrame->pts) return false; //drop the frame, the input frame rate is faster than encoder
+      dstFrame->pts = pts;
     }
 
     const int srcW = frame.coded_size().width();

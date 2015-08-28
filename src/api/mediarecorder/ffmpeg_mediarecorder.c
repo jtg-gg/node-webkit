@@ -141,7 +141,6 @@ int add_stream(OutputStream *ost, AVFormatContext *oc,
     ost->st->time_base = (AVRational){ 1, framerate };
     c->time_base = ost->st->time_base;
 
-    c->gop_size = 12; /* emit one intra frame every twelve frames at most */
     c->pix_fmt = AVPixelFormat;
     if (c->codec_id == AV_CODEC_ID_MPEG2VIDEO) {
       /* just for testing, we also add B frames */
@@ -254,7 +253,8 @@ int open_audio(AVFormatContext *oc, AVCodec *codec, OutputStream *ost, const int
 * srcNumSamples should be tmp_frame->nb_samples, 0 when doing loop, to empty the buffer
 * return 1 when packet is exist and the buffer not yet empty
 * return 0 when packet is exist and the buffer is "empty"
-* return -1 otherwise / error
+* return -1 error
+* return -2 to break the caller loop (dest nb_samples > src)
 */
 int write_audio_frame(OutputStream *ost, AVPacket* pkt, int srcNumSamples)
 {
@@ -276,9 +276,18 @@ int write_audio_frame(OutputStream *ost, AVPacket* pkt, int srcNumSamples)
     return -1;
   
   do {
+    // if the dest nb_samples > src, we need to fill it until it is full, before we can send the frame to encoder
+    // frame_sample is the current index
+    uint8_t *dest[AV_NUM_DATA_POINTERS];
+    memcpy(dest, ost->frame->data, AV_NUM_DATA_POINTERS);
+    for (int i=0; i<AV_NUM_DATA_POINTERS; i++){
+      if (ost->frame->data[i]==0) break;
+      dest[i] = ost->frame->data[i] + ost->frame_sample * (ost->frame->linesize[0] / ost->frame->nb_samples);
+    }
+
     /* convert to destination format */
     converted = swr_convert(ost->swr_ctx,
-                      ost->frame->data, ost->frame->nb_samples,
+                      dest, ost->frame->nb_samples - ost->frame_sample,
                       ost->tmp_frame->data, srcNumSamples);
 
     if (converted < 0) {
@@ -286,8 +295,19 @@ int write_audio_frame(OutputStream *ost, AVPacket* pkt, int srcNumSamples)
       return -1;
     }
 
+    //delay = swr_get_delay(ost->swr_ctx, ost->frame->sample_rate);
+
+    // returns if destination frame is not yet full
+    ost->frame_sample += converted;
+    if (ost->frame_sample < ost->frame->nb_samples) {
+      //printf("converted %d, delay %d, pts %lld\n",converted, delay, ost->frame->pts);
+      return -2;
+    }
+    
+    // in this line, it is guaranteed the dest frame is full, reset the frame_sample
+    av_assert0(ost->frame_sample == ost->frame->nb_samples);
+    ost->frame_sample = 0;
     ost->frame->pts += ost->frame->nb_samples;
-    delay = swr_get_delay(ost->swr_ctx, ost->frame->sample_rate);
     
     //enable this for debugging, the converted must be == ost->frame->nb_samples, 64 for ogg
     //printf("converted %d, delay %d, pts %lld\n",converted, delay, ost->frame->pts);
@@ -300,6 +320,7 @@ int write_audio_frame(OutputStream *ost, AVPacket* pkt, int srcNumSamples)
 
     // if we are looping, flush the buffer
     srcNumSamples = 0;
+    delay = swr_get_delay(ost->swr_ctx, ost->frame->sample_rate);
 
   // loop until buffer / delay is < 2 times of the sample size
   // break the loop whenever the packet is ready

@@ -46,6 +46,14 @@ MediaRecorder.prototype.start = function (filename, options) {
     if (!options.hasOwnProperty('height'))
         options.height = 0;
 
+    // convert all the options to integer
+	options.audioBitRate = Math.round(Number(options.audioBitRate));
+	options.audioSampleRate = Math.round(Number(options.audioSampleRate));
+	options.videoBitRate = Math.round(Number(options.videoBitRate));
+	options.frameRate = Math.round(Number(options.frameRate));
+	options.width = Math.round(Number(options.width));	
+	options.height = Math.round(Number(options.height));
+
     return nw.callObjectMethodSync(this, 'Start', [filename,
         options.audioBitRate, options.audioSampleRate, options.videoBitRate,
         options.frameRate, options.width, options.height])[0];
