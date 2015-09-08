@@ -22,6 +22,10 @@
 #define strtoll _strtoi64
 #define _ISOC99_SOURCE
 #define _LARGEFILE_SOURCE
+#define FF_API_PIX_FMT_DESC 0
+#define FF_API_OLD_DECODE_AUDIO 0
+#define FF_API_DESTRUCT_PACKET 0
+#define FF_API_GET_BUFFER 0
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -46,20 +50,31 @@ MSVC_PUSH_DISABLE_WARNING(4703);
 
 #define SCALE_FLAGS SWS_BICUBIC
 
-#ifdef _DEBUG
+//#define VERBOSE_DEBUG
+#ifdef VERBOSE_DEBUG
 #ifdef OS_WIN
+#include <Windows.h>
 #define snprintf _snprintf
 #endif
 #include <libavutil/timestamp.h>
 static void log_packet(const AVFormatContext *fmt_ctx, const AVPacket *pkt)
 {
   AVRational *time_base = &fmt_ctx->streams[pkt->stream_index]->time_base;
-
-  printf("pts:%s pts_time:%s dts:%s dts_time:%s duration:%s duration_time:%s stream_index:%d\n",
+#ifdef OS_WIN
+  char temp[1024];
+  sprintf(temp,
+#else
+  printf(
+#endif
+    "pts:%s pts_time:%s dts:%s dts_time:%s duration:%s duration_time:%s stream_index:%d\n",
     av_ts2str(pkt->pts), av_ts2timestr(pkt->pts, time_base),
     av_ts2str(pkt->dts), av_ts2timestr(pkt->dts, time_base),
     av_ts2str(pkt->duration), av_ts2timestr(pkt->duration, time_base),
     pkt->stream_index);
+
+#ifdef OS_WIN
+  OutputDebugStringA(temp);
+#endif
 }
 #endif
 
@@ -68,7 +83,7 @@ int write_frame(AVFormatContext *fmt_ctx, const AVRational *time_base, AVStream 
   /* rescale output packet timestamp values from codec to stream timebase */
   av_packet_rescale_ts(pkt, *time_base, st->time_base);
   pkt->stream_index = st->index;
-#ifdef _DEBUG
+#ifdef VERBOSE_DEBUG
   log_packet(fmt_ctx, pkt);
 #endif
   /* Write the compressed frame to the media file. */
@@ -140,7 +155,11 @@ int add_stream(OutputStream *ost, AVFormatContext *oc,
     * identical to 1. */
     ost->st->time_base = (AVRational){ 1, framerate };
     c->time_base = ost->st->time_base;
-
+    //c->gop_size = 12; /* emit one intra frame every twelve frames at most */
+    if (c->codec_id == AV_CODEC_ID_VP8) {
+      c->thread_count = av_cpu_count() - 1;
+      c->slices = FFMIN(width * height / 230400, 8);
+    }
     c->pix_fmt = AVPixelFormat;
     if (c->codec_id == AV_CODEC_ID_MPEG2VIDEO) {
       /* just for testing, we also add B frames */
@@ -295,12 +314,16 @@ int write_audio_frame(OutputStream *ost, AVPacket* pkt, int srcNumSamples)
       return -1;
     }
 
-    //delay = swr_get_delay(ost->swr_ctx, ost->frame->sample_rate);
+#ifdef VERBOSE_DEBUG
+    delay = swr_get_delay(ost->swr_ctx, ost->frame->sample_rate);
+#endif
 
     // returns if destination frame is not yet full
     ost->frame_sample += converted;
     if (ost->frame_sample < ost->frame->nb_samples) {
-      //printf("converted %d, delay %d, pts %lld\n",converted, delay, ost->frame->pts);
+#ifdef VERBOSE_DEBUG
+      printf("converted %d, delay %d, pts %lld\n",converted, delay, ost->frame->pts);
+#endif
       return -2;
     }
     
@@ -308,9 +331,11 @@ int write_audio_frame(OutputStream *ost, AVPacket* pkt, int srcNumSamples)
     av_assert0(ost->frame_sample == ost->frame->nb_samples);
     ost->frame_sample = 0;
     ost->frame->pts += ost->frame->nb_samples;
-    
+
+#ifdef VERBOSE_DEBUG
     //enable this for debugging, the converted must be == ost->frame->nb_samples, 64 for ogg
-    //printf("converted %d, delay %d, pts %lld\n",converted, delay, ost->frame->pts);
+    printf("converted %d, delay %d, pts %lld\n",converted, delay, ost->frame->pts);
+#endif
 
     ret = avcodec_encode_audio2(c, pkt, ost->frame, &got_packet);
     if (ret < 0) {
@@ -329,7 +354,9 @@ int write_audio_frame(OutputStream *ost, AVPacket* pkt, int srcNumSamples)
 
   if (got_packet) {
     if (delay > ost->frame->nb_samples * 2) {
-      //printf("converted %d, delay %d, pts %lld\n",converted, delay, ost->frame->pts);
+#ifdef VERBOSE_DEBUG
+      printf("converted %d, delay %d, pts %lld\n",converted, delay, ost->frame->pts);
+#endif
       return 1; //the caller to loop again, the buffer is not yet < 2 * sample size
     }
     else
@@ -426,12 +453,7 @@ int write_video_frame(AVFormatContext *oc, OutputStream *ost, AVFrame *frame, AV
     }
   }
 
-  if (ret < 0) {
-    fprintf(stderr, "Error while writing video frame: %s\n", av_err2str(ret));
-    return -1;
-  }
-
-  return (frame || got_packet) ? 0 : 1;
+  return !got_packet;
 }
 
 void close_stream(AVFormatContext *oc, OutputStream *ost)

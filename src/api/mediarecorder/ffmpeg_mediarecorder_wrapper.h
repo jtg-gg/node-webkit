@@ -37,12 +37,14 @@ extern "C" {
 struct AVOutputFormat;
 struct AVFormatContext;
 struct AVCodec;
-
+class FFMpegAVPacket;
+  
 class FFMpegMediaRecorder {
   OutputStream video_st, audio_st;
   const AVOutputFormat *fmt;
   AVFormatContext *oc;
   bool have_video, have_audio, audio_only;
+  int forceAudioSync, outTolerance;
 
   AVFrame* blackPixel_;
   SwsContext* blackScaler_;
@@ -54,6 +56,8 @@ class FFMpegMediaRecorder {
   base::TimeTicks audioStart_;
   bool fileReady_;
   short lastSrcW_, lastSrcH_;
+  
+  scoped_ptr<base::Thread> worker_thread_;
 
   bool Stop();
   int InitFile();
@@ -64,7 +68,7 @@ public:
   
   int Init(const char* filename);
   int InitVideo(short width, short height, char framerate, int bitrate, media::VideoFrame::Format pixelFormat);
-  int InitAudio(int samplerate, int targetsampleRate, int bitrate, int channels, int frame_size);
+  int InitAudio(int samplerate, int targetsampleRate, int bitrate, int channels, int frame_size, int forceSync);
   
   bool UpdateVideo(const media::VideoFrame& frame,
     const media::VideoCaptureFormat& format,
@@ -74,6 +78,8 @@ public:
     const base::TimeTicks& estimated_capture_time);
 
   int has_video() const { return have_video; }
+  
+  void WriteFrame(FFMpegAVPacket* pkt, AVStream* st);
 
 };
 

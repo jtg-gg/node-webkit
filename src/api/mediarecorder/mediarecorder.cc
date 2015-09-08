@@ -76,6 +76,7 @@ namespace nwapi{
       args.GetInteger(4, &frameRate_);
       args.GetInteger(5, &width_);
       args.GetInteger(6, &height_);
+      args.GetInteger(7, &forceSync_);
 
       if (!videoTrack_.isNull())
         MediaStreamVideoSink::AddToVideoTrack(
@@ -123,7 +124,7 @@ namespace nwapi{
     void OnSetFormat(const media::AudioParameters& params) override {
       const int bitRate = audioBitRate_ ? audioBitRate_ : params.sample_rate() * 2;
       const int audioSampleRate = audioSampleRate_ ? audioSampleRate_ : params.sample_rate();
-      ffmpeg_.InitAudio(params.sample_rate(), audioSampleRate, bitRate, params.channels(), params.frames_per_buffer());
+      ffmpeg_.InitAudio(params.sample_rate(), audioSampleRate, bitRate, params.channels(), params.frames_per_buffer(), forceSync_);
     }
 
     friend class base::RefCountedThreadSafe<MediaRecorderSink>;
@@ -132,6 +133,7 @@ namespace nwapi{
     }
 
     int audioBitRate_, audioSampleRate_, videoBitRate_, frameRate_, width_, height_;
+    int forceSync_;
     blink::WebMediaStreamTrack videoTrack_, audioTrack_;
     FFMpegMediaRecorder ffmpeg_;
     DISALLOW_COPY_AND_ASSIGN(MediaRecorderSink);

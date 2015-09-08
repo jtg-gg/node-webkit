@@ -37,7 +37,7 @@ extern "C" {
     AVStream *st;
 
     AVFrame *frame;
-    int frame_sample;
+    int frame_sample;    // used by audio
     AVFrame *tmp_frame;
 
     struct SwsContext *sws_ctx;
