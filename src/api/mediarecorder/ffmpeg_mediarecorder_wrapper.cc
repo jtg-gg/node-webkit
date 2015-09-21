@@ -224,7 +224,7 @@ extern "C" {
 #ifdef OS_WIN
           OutputDebugStringA(ostream_.str().c_str());
 #else
-          printf(ostream_.str().c_str());
+          printf("%s", ostream_.str().c_str());
 #endif
         }
       }
@@ -520,7 +520,7 @@ extern "C" {
 #ifdef MEMORY_PROFILING
     LOG(INFO) << "FFMpegAVPacket before stop: " << FFMpegAVPacket::object_counter_;
 #endif
-    worker_thread_->Stop();
+    if (worker_thread_) worker_thread_->Stop();
 #ifdef MEMORY_PROFILING
     LOG(INFO) << "FFMpegAVPacket after  stop: " << FFMpegAVPacket::object_counter_ << ", Max object: " << FFMpegAVPacket::max_object_;
 #endif

@@ -307,7 +307,7 @@ int write_audio_frame(OutputStream *ost, AVPacket* pkt, int srcNumSamples)
     /* convert to destination format */
     converted = swr_convert(ost->swr_ctx,
                       dest, ost->frame->nb_samples - ost->frame_sample,
-                      ost->tmp_frame->data, srcNumSamples);
+                      (const uint8_t **)ost->tmp_frame->data, srcNumSamples);
 
     if (converted < 0) {
       fprintf(stderr, "Error while converting\n");
