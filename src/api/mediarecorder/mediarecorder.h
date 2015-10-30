@@ -39,7 +39,7 @@ namespace nwapi {
       const base::ListValue& arguments,
       base::ListValue* result) override;
 
-    static bool Process(const int object_id, const std::string method, const base::ListValue& args, const base::ListValue& streams);
+    static bool Process(const std::string method, const base::ListValue& args, const base::ListValue& streams);
 
   private:
     std::string mVideoID, mAudioID;

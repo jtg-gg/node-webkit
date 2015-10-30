@@ -61,8 +61,12 @@ MediaRecorder.prototype.start = function (filename, options) {
         options.frameRate, options.width, options.height, options.forceSync])[0];
 };
 
-MediaRecorder.prototype.stop = function () {
-    return nw.callObjectMethodSync(this, 'Stop', [])[0];
+MediaRecorder.prototype.stop = function (callback) {
+  if(nw.callObjectMethodSync(this, 'Stop', [])[0]) {
+    this.once('fileClosed', callback);
+    return true;
+  }
+  return false;
 };
 
 exports.MediaRecorder = MediaRecorder;

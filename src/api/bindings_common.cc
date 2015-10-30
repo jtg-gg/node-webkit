@@ -159,14 +159,16 @@ v8::Handle<v8::Value> CallObjectMethodSync(int routing_id,
         "Unable to convert 'args' passed to CallObjectMethodSync")));
 
   base::ListValue result;
-  const base::ListValue& newArgs = *static_cast<const base::ListValue*>(value_args.get());
+  base::ListValue& newArgs = *static_cast<base::ListValue*>(value_args.get());
 
   if (!type.compare("MediaRecorder")) {
     result.AppendBoolean(false); // default result is false;
     if (!method.compare("Start") || !method.compare("Stop")) {
       if (RenderThread::Get()->Send(new ShellViewHostMsg_Call_Object_Method_Sync(
         routing_id, object_id, type, method, newArgs, &result))) {
-        bool res = nwapi::MediaRecorder::Process(object_id, method, newArgs, result);
+        newArgs.AppendInteger(object_id);
+        newArgs.AppendInteger(routing_id);
+        bool res = nwapi::MediaRecorder::Process(method, newArgs, result);
         result.Clear();
         result.AppendBoolean(res);
       }

@@ -58,6 +58,9 @@ class Dispatcher : public content::RenderViewObserver {
     blink::WebNavigationPolicy* policy,
     blink::WebString* manifest);
 
+  void OnEvent(int object_id,
+               std::string event,
+               const base::ListValue& arguments);
  private:
   // RenderViewObserver implementation.
    bool OnMessageReceived(const IPC::Message& message) override;
@@ -66,10 +69,6 @@ class Dispatcher : public content::RenderViewObserver {
    void DidCreateDocumentElement(blink::WebLocalFrame* frame) override;
 
   void documentCallback(const char* ev, blink::WebLocalFrame* frame);
-
-  void OnEvent(int object_id,
-               std::string event,
-               const base::ListValue& arguments);
 
   DISALLOW_COPY_AND_ASSIGN(Dispatcher);
 };

@@ -19,6 +19,7 @@
 //  CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #include "content/nw/src/api/mediarecorder/mediarecorder.h"
+#include "content/nw/src/api/dispatcher.h"
 #include "public/web/WebMediaStreamRegistry.h"
 #include "third_party/WebKit/public/platform/WebURL.h"
 #include "third_party/WebKit/public/platform/WebMediaStream.h"
@@ -26,6 +27,7 @@
 
 #include "content/public/renderer/media_stream_video_sink.h"
 #include "content/public/renderer/media_stream_audio_sink.h"
+#include "content/public/renderer/render_view.h"
 #include "media/audio/audio_parameters.h"
 #include "media/base/video_frame.h"
 #include "base/strings/utf_string_conversions.h"
@@ -77,6 +79,8 @@ namespace nwapi{
       args.GetInteger(5, &width_);
       args.GetInteger(6, &height_);
       args.GetInteger(7, &forceSync_);
+      args.GetInteger(8, &objectId_);
+      args.GetInteger(9, &routingId_);
 
       if (!videoTrack_.isNull())
         MediaStreamVideoSink::AddToVideoTrack(
@@ -130,9 +134,13 @@ namespace nwapi{
     friend class base::RefCountedThreadSafe<MediaRecorderSink>;
     ~MediaRecorderSink() override {
       DVLOG(3) << "MediaRecorderSink dtor().";
+      ffmpeg_.Stop();
+      base::ListValue args;
+      nwapi::Dispatcher(content::RenderView::FromRoutingID(routingId_)).OnEvent(objectId_, "fileClosed", args);
     }
 
     int audioBitRate_, audioSampleRate_, videoBitRate_, frameRate_, width_, height_;
+    int objectId_, routingId_;
     int forceSync_;
     blink::WebMediaStreamTrack videoTrack_, audioTrack_;
     FFMpegMediaRecorder ffmpeg_;
@@ -140,21 +148,23 @@ namespace nwapi{
   };
 
 
-  bool MediaRecorder::Process(const int object_id, const std::string method, const base::ListValue& args, const base::ListValue& streams) {
+  bool MediaRecorder::Process(const std::string method, const base::ListValue& args, const base::ListValue& streams) {
     typedef std::map < int, MediaRecorderSink* > MRSMap;
     static MRSMap mrsMap;
-
-    std::string videoID, audioID;
-    streams.GetString(0, &videoID);
-    streams.GetString(1, &audioID);
     
-    const blink::WebMediaStream& video = blink::WebMediaStreamRegistry::lookupMediaStreamDescriptor(GURL(videoID));
-    const blink::WebMediaStream& audio = blink::WebMediaStreamRegistry::lookupMediaStreamDescriptor(GURL(audioID));
-
+    int object_id = -1;
+    if(!args.GetInteger(args.GetSize()-2, &object_id))
+      return false;
+    
     if (!method.compare("Start")) {
       MRSMap::iterator i = mrsMap.find(object_id);
+      if (i != mrsMap.end()) return false; // already started before ?
 
-      if (i != mrsMap.end()) return false; // already started before
+      std::string videoID, audioID;
+      streams.GetString(0, &videoID);
+      streams.GetString(1, &audioID);
+      const blink::WebMediaStream& video = blink::WebMediaStreamRegistry::lookupMediaStreamDescriptor(GURL(videoID));
+      const blink::WebMediaStream& audio = blink::WebMediaStreamRegistry::lookupMediaStreamDescriptor(GURL(audioID));
       if (audio.isNull() && video.isNull()) return false; // both are null ??
 
       blink::WebVector<blink::WebMediaStreamTrack> videoTracks;
@@ -163,17 +173,17 @@ namespace nwapi{
       if(!video.isNull()) video.videoTracks(videoTracks);
       if(!audio.isNull()) audio.audioTracks(audioTracks);
 
-      blink::WebMediaStreamTrack video;
-      if(videoTracks.size() > 0) video = videoTracks[0];
+      blink::WebMediaStreamTrack video0;
+      if(videoTracks.size() > 0) video0 = videoTracks[0];
 
-      blink::WebMediaStreamTrack audio;
-      if(audioTracks.size() > 0) audio = audioTracks[0];
+      blink::WebMediaStreamTrack audio0;
+      if(audioTracks.size() > 0) audio0 = audioTracks[0];
 
       base::string16 filename;
       if (!args.GetString(0, &filename))
         return false; // no filename
 
-      MediaRecorderSink* mrs = new MediaRecorderSink(base::UTF16ToUTF8(filename).c_str(), video, audio, args);
+      MediaRecorderSink* mrs = new MediaRecorderSink(base::UTF16ToUTF8(filename).c_str(), video0, audio0, args);
       mrsMap.insert(std::pair<MRSMap::key_type, MRSMap::mapped_type>(object_id, mrs));
       mrs->AddRef();
 

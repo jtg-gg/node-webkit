@@ -59,7 +59,6 @@ class FFMpegMediaRecorder {
   
   scoped_ptr<base::Thread> worker_thread_;
 
-  bool Stop();
   int InitFile();
 
 public:
@@ -81,6 +80,7 @@ public:
   
   void WriteFrame(FFMpegAVPacket* pkt, AVStream* st);
 
+  bool Stop();
 };
 
 #ifdef __cplusplus
