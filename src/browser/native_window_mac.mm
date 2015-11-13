@@ -362,6 +362,7 @@ NativeWindowCocoa::NativeWindowCocoa(
       is_kiosk_(false),
       attention_request_id_(0),
       use_system_drag_(true),
+      force_enable_drag_region_(false),
       initial_focus_(false),    // the initial value is different from other
                                 // platforms since osx will focus the first
                                 // window and we want to distinguish the first
@@ -371,6 +372,7 @@ NativeWindowCocoa::NativeWindowCocoa(
   manifest->GetInteger(switches::kmWidth, &width);
   manifest->GetInteger(switches::kmHeight, &height);
   manifest->GetBoolean(switches::kmInitialFocus, &initial_focus_);
+  manifest->GetBoolean("force-enable-drag-region", &force_enable_drag_region_);
 
   NSRect main_screen_rect = [[[NSScreen screens] objectAtIndex:0] frame];
   NSRect cocoa_bounds = NSMakeRect(
@@ -425,7 +427,7 @@ NativeWindowCocoa::NativeWindowCocoa(
   [view setAutoresizingMask:NSViewWidthSizable | NSViewHeightSizable];
 
   // By default, the whole frameless window is not draggable.
-  if (!has_frame_) {
+  if (!has_frame_ || force_enable_drag_region_) {
     gfx::Rect window_bounds(
         0, 0, NSWidth(cocoa_bounds), NSHeight(cocoa_bounds));
     system_drag_exclude_areas_.push_back(window_bounds);
@@ -442,6 +444,10 @@ void NativeWindowCocoa::InstallView() {
   if (has_frame_) {
     [view setFrame:[[window() contentView] bounds]];
     [[window() contentView] addSubview:view];
+    if (force_enable_drag_region_) {
+      [view setMouseDownCanMoveWindow:YES];
+      InstallDraggableRegionViews();
+    }
   } else {
     // TODO(jeremya): find a cleaner way to send this information to the
     // WebContentsViewCocoa view.
@@ -909,7 +915,7 @@ void NativeWindowCocoa::SetToolbarIsLoading(bool loading) {
 void NativeWindowCocoa::UpdateDraggableRegions(
     const std::vector<extensions::DraggableRegion>& regions) {
   // Draggable region is not supported for non-frameless window.
-  if (has_frame_)
+  if (has_frame_ && !force_enable_drag_region_)
     return;
 
   // To use system drag, the window has to be marked as draggable with
@@ -1065,7 +1071,7 @@ void NativeWindowCocoa::UpdateDraggableRegionsForCustomDrag(
 }
 
 void NativeWindowCocoa::InstallDraggableRegionViews() {
-  DCHECK(!has_frame_);
+  DCHECK(!has_frame_ || force_enable_drag_region_);
 
   // All ControlRegionViews should be added as children of the WebContentsView,
   // because WebContentsView will be removed and re-added when entering and

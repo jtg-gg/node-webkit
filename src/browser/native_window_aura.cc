@@ -316,6 +316,7 @@ NativeWindowAura::NativeWindowAura(const base::WeakPtr<content::Shell>& shell,
       web_view_(NULL),
       is_fullscreen_(false),
       is_visible_on_all_workspaces_(false),
+      force_enable_drag_region_(false),
       is_minimized_(false),
       is_maximized_(false),
       is_focus_(false),
@@ -330,6 +331,7 @@ NativeWindowAura::NativeWindowAura(const base::WeakPtr<content::Shell>& shell,
   manifest->GetBoolean("fullscreen", &is_fullscreen_);
   manifest->GetBoolean("resizable", &resizable_);
   manifest->GetBoolean("visible-on-all-workspaces", &is_visible_on_all_workspaces_);
+  manifest->GetBoolean("force-enable-drag-region", &force_enable_drag_region_);
 
   window_ = new views::Widget;
   views::Widget::InitParams params(views::Widget::InitParams::TYPE_WINDOW);
@@ -856,7 +858,7 @@ views::ClientView* NativeWindowAura::CreateClientView(views::Widget* widget) {
 
 views::NonClientFrameView* NativeWindowAura::CreateNonClientFrameView(
     views::Widget* widget) {
-  if (has_frame())
+  if (has_frame() && !force_enable_drag_region_)
     return new views::NativeFrameView(GetWidget());
 
   NativeWindowFrameView* frame_view = new NativeWindowFrameView(this);
@@ -961,7 +963,7 @@ views::View* NativeWindowAura::GetInitiallyFocusedView() {
 void NativeWindowAura::UpdateDraggableRegions(
     const std::vector<extensions::DraggableRegion>& regions) {
   // Draggable region is not supported for non-frameless window.
-  if (has_frame())
+  if (has_frame() && !force_enable_drag_region_)
     return;
 
   SkRegion* draggable_region = new SkRegion;

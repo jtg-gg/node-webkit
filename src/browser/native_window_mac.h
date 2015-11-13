@@ -127,6 +127,7 @@ class NativeWindowCocoa : public NativeWindow {
   // Indicates whether system drag or custom drag should be used, depending on
   // the complexity of draggable regions.
   bool use_system_drag_;
+  bool force_enable_drag_region_;
 
   // For system drag, the whole window is draggable and the non-draggable areas
   // have to been explicitly excluded.

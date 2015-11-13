@@ -185,6 +185,7 @@ class NativeWindowAura : public NativeWindow,
   views::Widget* window_;
   bool is_fullscreen_;
   bool is_visible_on_all_workspaces_;
+  bool force_enable_drag_region_;
 
   // Flags used to prevent sending extra events.
   bool is_minimized_;
