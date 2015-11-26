@@ -159,12 +159,13 @@ enum {
 
 - (void)windowDidResize:(NSNotification*)notification {
   if (shell_) {
-    NSWindow* window =
-      static_cast<nw::NativeWindowCocoa*>(shell_->window())->window();
+    nw::NativeWindowCocoa* native_window = static_cast<nw::NativeWindowCocoa*>(shell_->window());
+    NSWindow* window = native_window->window();
     NSRect frame = [window frame];
     base::ListValue args;
     args.AppendInteger(frame.size.width);
     args.AppendInteger(frame.size.height);
+    native_window->InstallDraggableRegionViews();
     shell_->SendEvent("resize", args);
   }
 }
@@ -1071,7 +1072,8 @@ void NativeWindowCocoa::UpdateDraggableRegionsForCustomDrag(
 }
 
 void NativeWindowCocoa::InstallDraggableRegionViews() {
-  DCHECK(!has_frame_ || force_enable_drag_region_);
+  if(has_frame_ && !force_enable_drag_region_)
+    return;
 
   // All ControlRegionViews should be added as children of the WebContentsView,
   // because WebContentsView will be removed and re-added when entering and

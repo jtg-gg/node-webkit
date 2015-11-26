@@ -90,6 +90,8 @@ class NativeWindowCocoa : public NativeWindow {
 
   NSWindow* window() const { return window_; }
 
+  void InstallDraggableRegionViews();
+
  protected:
   // NativeWindow implementation.
   virtual void AddToolbar() override;
@@ -103,7 +105,6 @@ class NativeWindowCocoa : public NativeWindow {
  private:
   void InstallView();
   void UninstallView();
-  void InstallDraggableRegionViews();
   void UpdateDraggableRegionsForSystemDrag(
       const std::vector<extensions::DraggableRegion>& regions,
       const extensions::DraggableRegion* draggable_area);
