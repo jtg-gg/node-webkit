@@ -981,7 +981,6 @@
          '<(DEPTH)/chrome/chrome.gyp:chrome',
          '<(DEPTH)/third_party/node/node.gyp:node',
          '<(DEPTH)/v8/tools/gyp/v8.gyp:nwjc',
-         'payload',
       ],
       'conditions': [
         ['disable_nacl==0', {
@@ -1048,6 +1047,7 @@
         }],
       ],
       'dependencies': [
+	    'payload',
         'nw_strip_symbol',
         'about_credits_nw',
       ],
