@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <title>getHttpAuth</title>
+</head>
+<body>
+  <script>
+
+const https_auth = 'https://httpbin.org/basic-auth/user/passwd';
+const https_port  = 'https://httpbin.org:443';
+const https_port2 =  https_port+'/basic-auth/user/passwd';
+
+const http_auth  = 'http://httpbin.org/basic-auth/user/passwd';
+const http_port  = 'http://httpbin.org:80';
+const http_port2 =  http_port+'/basic-auth/user/passwd';
+
+const proxy_ip = '52.76.11.196';
+const http_proxy  = proxy_ip + ':80';
+const https_proxy = proxy_ip + ':8080';
+
+const http_url  = 'http://' + proxy_ip;
+const http_url2 =  http_url + '/test/test.html';
+
+const http_url3 = 'http://' + http_proxy;
+const http_url4 =  http_url3 + '/test/test.html';
+
+const http_url5 = 'http://' + https_proxy;
+const http_url6 =  http_url5 + '/test/test.html';
+
+const https_url  = 'https://' + https_proxy;
+const https_url2 =  https_url + '/test/test.html';
+
+const http_wrongPort   = 'http://' + https_proxy;
+const http_wrongPort2  =  http_wrongPort + '/test/test.html';
+const https_wrongPort  = 'https://' + http_proxy;
+const https_wrongPort2 =  https_wrongPort + '/test/test.html';
+
+const http_dummy  = 'http://dummy.dummy';
+const http_dummy2 = http_dummy + '/';
+
+const gProxyUser = "test";
+const gProxyPassword = "password";
+
+var gAuthUser = "user";
+var gAuthPassword = "passwd";
+var gProxyDependentUser = "";
+var gProxyDependentPassword = "";
+
+function setGoodProxy() {
+  nw.App.setProxyConfig("http=bla.bla,"+http_proxy+";https=bla,bla,"+https_proxy);
+  gProxyDependentUser = gProxyUser;
+  gProxyDependentPassword = gProxyPassword;
+}
+
+function setBadProxy() {
+  nw.App.setProxyConfig("http=bla.bla,52.76.11.196:800;https=bla,bla,52.76.11.196:800");
+  gAuthUser = "";
+  gAuthPassword = "";
+}
+  
+function onAuth(details) {
+  if (details.statusCode == 407) // proxy
+    return {
+      authCredentials: {
+        username: gProxyUser,
+        password: gProxyPassword
+      }
+    };
+
+  return {
+    authCredentials: {
+      username: gAuthUser,
+      password: gAuthPassword
+    }
+  };
+}
+  
+chrome.webRequest.onAuthRequired.addListener(onAuth,
+                                             {urls: ["<all_urls>"]},
+                                             ['blocking']);
+
+function urlTest(test_url, expected_user, expected_pass, result_cb) {
+nw.App.getHttpAuth(test_url, '', '',
+                     function(url, usr, pwd) {
+                     document.getElementById("output").innerHTML += "httpAuth1 " + test_url + " url:" + url + " usr:" + usr + ", pwd:" + pwd + "<br>";
+                     url_test = new URL(test_url);
+                     result_cb(test_url, url == url_test.href && usr == expected_user && pwd == expected_pass)
+                     });
+}
+
+function urlTest2(test_url, expected_user, expected_pass, result_cb) {
+nw.App.getHttpAuth(test_url, '', '',
+                     function(url, usr, pwd) {
+                     document.getElementById("output").innerHTML += "httpAuth2 " + test_url + " url:" + url + " usr:" + usr + ", pwd:" + pwd + "<br>";
+                     url_test = new URL(test_url);
+                     result_cb(test_url, url == url_test.href && usr == expected_user && pwd == expected_pass, 2)
+                     });
+}
+
+  function writeSuccess(id) {
+    var result = document.createElement('p');
+    result.setAttribute('id', 'result' + id);
+    result.innerHTML = 'success '+ id;
+    document.body.appendChild(result);
+  }
+
+  function writeFailure(e, id) {
+    var result = document.createElement('p');
+    result.setAttribute('id', 'result' + id);
+    result.innerHTML = 'failure ' + id + ' [' + e + ']';
+    document.body.appendChild(result);
+  }
+  
+  function runTest1() {
+    const testID = 1;
+    const numRes = 2;
+    var curRes = 0;
+    function testRes(url, res) {
+      if(!res) {writeFailure(url, testID); curRes=-1;}
+      if(++curRes == numRes)
+      writeSuccess(testID);
+    }
+    
+    urlTest(https_auth, gAuthUser, gAuthPassword, testRes);
+    urlTest(http_auth,  gAuthUser, gAuthPassword, testRes);
+  }
+  
+  function runTest2() {
+    const testID = 2;
+    const numRes = 2;
+    var curRes = 0;
+    function testRes(url, res) {
+      if(!res) {writeFailure(url, testID); curRes=-1;}
+      if(++curRes == numRes)
+      writeSuccess(testID);
+    }
+    
+    urlTest(http_dummy,  "", "", testRes);
+    urlTest(http_dummy2, "", "", testRes);
+  }
+  
+  function runTest3() {
+    const testID = 3;
+    const numRes = 10;
+    var curRes = 0;
+    function testRes(url, res) {
+      if(!res) {writeFailure(url, testID); curRes=-1;}
+      if(++curRes == numRes)
+      writeSuccess(testID);
+    }
+    
+    urlTest(https_port, "", "", testRes);
+    urlTest(http_port,  "", "", testRes);
+    urlTest(http_url,  gProxyDependentUser, gProxyDependentPassword, testRes);
+    urlTest(http_url2, gProxyDependentUser, gProxyDependentPassword, testRes);
+    urlTest(http_url3, gProxyDependentUser, gProxyDependentPassword, testRes);
+    urlTest(http_url4, gProxyDependentUser, gProxyDependentPassword, testRes);
+    urlTest(http_url5, gProxyDependentUser, gProxyDependentPassword, testRes);
+    urlTest(http_url6, gProxyDependentUser, gProxyDependentPassword, testRes);
+    urlTest(https_url,  "", "", testRes);
+    urlTest(https_url2, "", "", testRes);
+  }
+  
+  function runTest4() {
+    const testID = 4;
+    const numRes = 4;
+    var curRes = 0;
+    function testRes(url, res) {
+      if(!res) {writeFailure(url, testID); curRes=-1;}
+      if(++curRes == numRes)
+      writeSuccess(testID);
+    }
+    
+    urlTest(http_wrongPort,   gProxyDependentUser, gProxyDependentPassword, testRes);
+    urlTest(http_wrongPort2,  gProxyDependentUser, gProxyDependentPassword, testRes);
+    urlTest(https_wrongPort,  "", "", testRes);
+    urlTest(https_wrongPort2, "", "", testRes);
+  }
+  
+  function runTest5() {
+    chrome.webRequest.onAuthRequired.removeListener(onAuth,
+                                                 {urls: ["<all_urls>"]},
+                                                 ['blocking']);
+
+    const testID = 5;
+    const numRes = 3;
+    var curRes = [0, 0];
+    function testRes(url, res, id) {
+      if(!res || curRes[0] > numRes || curRes[1] > numRes) {
+        writeFailure(url, testID);
+        curRes = [-1,-1];
+        return;
+      }
+ 
+      if(id == 2) curRes[1]++;
+      else curRes[0]++;
+
+      if(curRes[0] == numRes && curRes[1] == numRes)
+        writeSuccess(testID);
+    }
+    urlTest (https_auth,  gAuthUser, gAuthPassword, testRes);
+    urlTest2(https_auth,  gAuthUser, gAuthPassword, testRes);
+    urlTest (http_dummy2, "", "", testRes);
+    urlTest2(http_dummy2, "", "", testRes);
+    urlTest (http_url,   gProxyDependentUser, gProxyDependentPassword, testRes);
+    urlTest2(http_url,   gProxyDependentUser, gProxyDependentPassword, testRes);
+  }
+  
+  function runTest6() {
+    const testID = 6;
+    const numRes = 2;
+    var curRes = 0;
+    function testRes(url, res) {
+      if(!res) {writeFailure(url, testID); curRes=-1;}
+      if(++curRes == numRes)
+      writeSuccess(testID);
+    }
+    
+    urlTest(https_port2, gAuthUser, gAuthPassword, testRes);
+    urlTest(http_port2,  gAuthUser, gAuthPassword, testRes);
+  }
+  
+  </script>
+  <button id="goodProxy" onclick="setGoodProxy()">setGoodProxy</button>
+  <button id="badProxy" onclick="setBadProxy()">setBadProxy</button>
+  <button id="test1" onclick="runTest1()">getHttpAuth</button>
+  <button id="test2" onclick="runTest2()">getHttpAuth dummy</button>
+  <button id="test3" onclick="runTest3()">getHttpAuth non authenticating / proxy test</button>
+  <button id="test4" onclick="runTest4()">getHttpAuth wrong port</button>
+  <button id="test5" onclick="runTest5()">concurent getHttpAuth</button>
+  <button id="test6" onclick="runTest6()">getHttpAuth with port</button>
+  <p id="output">
+</body>
+</html>

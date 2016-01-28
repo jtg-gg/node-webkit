@@ -1,6 +1,7 @@
 var nwNatives = requireNative('nw_natives');
 var NWEventTokens = {};
 var getHttpProxyHandler = bindingUtil.createCustomEvent("getHttpProxy", undefined, false, false);
+var getHttpAuthHandler = bindingUtil.createCustomEvent("getHttpAuth", undefined, false, false);
 var fullArgv = null;
 var dataPath;
 
@@ -115,6 +116,45 @@ apiBridge.registerCustomHook(function(bindingsAPI) {
   });
   apiFunctions.setHandleRequest('clearAppCache', function() {
     bindingUtil.sendRequestSync('nw.App.clearAppCache', $Array.from(arguments), undefined, undefined);
+  });
+  getHttpAuthHandler.addListener(function() {
+    var token = arguments[0];
+    var callback = getNWEvent(token);
+    callback.dispatch(arguments[1], arguments[2], arguments[3]);
+    cleanNWEvent(token);
+  });
+  apiFunctions.setHandleRequest('getHttpAuth', function(url, realm, scheme, callback) {
+    // realm, scheme is not used anymore
+    var res = false;
+    try {
+     var protocol = new URL(url).protocol;
+     res = protocol == "http:" || protocol == "https:";
+    } catch (_) {
+      res = false;
+    }
+    if (res && typeof callback == 'function') {
+      var http = new window.XMLHttpRequest();
+      http.open("head", url, true);
+      http.onreadystatechange = function (aEvt) {
+        if (http.readyState == 4) {
+          if(http.status != 407) {
+            var token = 'getHttpAuth ' + url;
+            var event = getNWEvent(token);
+            event.addListener(callback);
+            res = bindingUtil.sendRequestSync('nw.App.getHttpAuth', [url, token], undefined, undefined);
+            if (!res) {
+              // if success cleanNWEvent will be done by getHttpAuthHandler
+              cleanNWEvent(token);
+            }
+          } else {
+            callback.dispatch(url, '', '');
+          }
+        }
+      };
+      http.send();      
+      return true;
+    }
+    return false;
   });
   apiFunctions.setHandleRequest('getProxyForURL', function() {
     return nwNatives.getProxyForURL.apply(this, arguments);
