@@ -17,6 +17,7 @@
 #include "chrome/browser/net/profile_network_context_service_factory.h"
 #include "content/nw/src/api/nw_app.h"
 #include "content/nw/src/nw_base.h"
+#include "content/nw/src/nw_content.h"
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/render_process_host.h"
 #include "content/public/browser/render_view_host.h"
@@ -26,6 +27,7 @@
 #include "extensions/browser/app_window/app_window_registry.h"
 #include "extensions/browser/app_window/native_app_window.h"
 #include "extensions/browser/extension_system.h"
+#include "extensions/browser/event_router.h"
 #include "extensions/common/error_utils.h"
 #include "net/proxy_resolution/proxy_config.h"
 #include "net/proxy_resolution/proxy_config_service_fixed.h"
@@ -201,6 +203,82 @@ bool NwAppSetProxyConfigFunction::RunNWSync(base::ListValue* response, std::stri
   return true;
 }
 
+static void DispatchEvent(
+  const std::string& handler,
+  const scoped_refptr<ExtensionFunction>& caller,
+  base::ListValue* results) {
+
+  std::unique_ptr<base::ListValue> arguments(results);
+  std::unique_ptr<extensions::Event> event(
+    new extensions::Event(extensions::events::UNKNOWN,
+      handler, std::move(arguments)));
+
+  EventRouter::Get(caller->browser_context())->DispatchEventToExtension(
+    caller->extension_id(), std::move(event));
+}
+
+class NWJSProxyLookupClient : public network::mojom::ProxyLookupClient {
+public:
+  NWJSProxyLookupClient(const GURL& gurl, const std::string& token,
+      const scoped_refptr<ExtensionFunction> caller,
+      network::mojom::NetworkContext* network_context) :
+      binding_(this), gurl_(gurl), token_(token), caller_(caller) {
+    network::mojom::ProxyLookupClientPtr proxy_lookup_client;
+    binding_.Bind(mojo::MakeRequest(&proxy_lookup_client));
+    network_context->LookUpProxyForURL(gurl_, std::move(proxy_lookup_client));
+  }
+private:
+  ~NWJSProxyLookupClient() override = default;
+  
+  // mojom::ProxyLookupClient implementation:
+  void OnProxyLookupComplete(int32_t net_error,
+      const base::Optional<net::ProxyInfo>& proxy_info) override {
+    base::ListValue* results = new base::ListValue();
+    results->AppendString(gurl_.spec());
+    std::string proxy = "";
+    if(proxy_info && !proxy_info->is_empty()) {
+      proxy = proxy_info->proxy_server().host_port_pair().ToString();
+    }
+    results->AppendString(proxy);
+    results->AppendString(token_);
+    DispatchEvent("getHttpProxy", caller_, results);
+    delete this;
+  }
+  
+  mojo::Binding<network::mojom::ProxyLookupClient> binding_;
+  const GURL gurl_;
+  const std::string token_;
+  const scoped_refptr<ExtensionFunction> caller_;
+};
+
+NwAppGetHttpProxyFunction::NwAppGetHttpProxyFunction() {
+}
+
+NwAppGetHttpProxyFunction::~NwAppGetHttpProxyFunction() {
+}
+
+bool NwAppGetHttpProxyFunction::RunNWSync(base::ListValue *response, std::string *error) {
+  std::string url;
+  EXTENSION_FUNCTION_VALIDATE(args_->GetString(0, &url));
+  const GURL gurl(url);
+  if (!gurl.is_valid() || !gurl.SchemeIsHTTPOrHTTPS()) {
+    response->AppendBoolean(false);
+    return true;
+  }
+  
+  std::string token;
+  EXTENSION_FUNCTION_VALIDATE(args_->GetString(2, &token));
+
+  // this is important for to "format" the url
+  url = gurl.spec();
+
+  content::RenderProcessHost* render_process_host = GetSenderWebContents()->GetMainFrame()->GetProcess();
+  network::mojom::NetworkContext* network_context = render_process_host->GetStoragePartition()->GetNetworkContext();
+  NWJSProxyLookupClient* client = new NWJSProxyLookupClient(gurl, token, base::WrapRefCounted(this), network_context);
+  response->AppendBoolean(client != nullptr);
+  return true;
+}
+  
 bool NwAppGetDataPathFunction::RunNWSync(base::ListValue* response, std::string* error) {
   response->AppendString(browser_context()->GetPath().value());
   return true;
