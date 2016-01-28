@@ -6,6 +6,7 @@
 [implemented_in="content/nw/src/api/nw_app_api.h"]
 namespace nw.App {
   callback EventCallback = void();
+  callback ProxyEventCallback = void(DOMString url, DOMString proxy);
   interface Functions {
     // crash the renderer for testing
     [nocompile] static void crashRenderer();
@@ -20,6 +21,7 @@ namespace nw.App {
     static void clearCache();
     static void clearAppCache(DOMString manifest_url);
     static void setProxyConfig(DOMString config);
+    static void getHttpProxy(DOMString url, ProxyEventCallback callback);
     [nocompile] static DOMString getProxyForURL(DOMString url);
     [nocompile] static void addOriginAccessWhitelistEntry(DOMString sourceOrigin, DOMString destinationProtocol, DOMString destinationHost, boolean allowDestinationSubdomains);
     [nocompile] static void removeOriginAccessWhitelistEntry(DOMString sourceOrigin, DOMString destinationProtocol, DOMString destinationHost, boolean allowDestinationSubdomains);
