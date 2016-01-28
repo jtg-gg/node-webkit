@@ -279,6 +279,49 @@ bool NwAppGetHttpProxyFunction::RunNWSync(base::ListValue *response, std::string
   return true;
 }
   
+NwAppGetHttpAuthFunction::NwAppGetHttpAuthFunction() {
+}
+
+NwAppGetHttpAuthFunction::~NwAppGetHttpAuthFunction() {
+}
+
+bool NwAppGetHttpAuthFunction::RunNWSync(base::ListValue* response, std::string* error) {
+  std::string url, token;
+  EXTENSION_FUNCTION_VALIDATE(args_->GetString(0, &url));
+  const GURL gurl(url);
+  if (!gurl.is_valid() || !gurl.SchemeIsHTTPOrHTTPS()) {
+    response->AppendBoolean(false);
+    return false;
+  }
+
+  EXTENSION_FUNCTION_VALIDATE(args_->GetString(1, &token));
+  
+  content::RenderProcessHost* render_process_host = GetSenderWebContents()->GetMainFrame()->GetProcess();
+  network::mojom::NetworkContext* network_context = render_process_host->GetStoragePartition()->GetNetworkContext();
+
+  network_context->LookupBasicAuthCredentials(gurl, base::BindOnce([](
+      const std::string token,
+      const GURL gurl,
+      const scoped_refptr<ExtensionFunction>& caller,
+      const base::Optional<net::AuthCredentials>& credentials) {
+    base::string16 username;
+    base::string16 password;
+    if (credentials) {
+      username = credentials->username();
+      password = credentials->password();
+    }
+    base::ListValue* results = new base::ListValue();
+    results->AppendString(token);
+    results->AppendString(gurl.spec());
+    results->AppendString(username);
+    results->AppendString(password);
+    DispatchEvent("getHttpAuth", caller, results);
+  }, token, gurl, base::WrapRefCounted(this)));
+
+  response->AppendBoolean(true);
+  return true;
+}
+  
 bool NwAppGetDataPathFunction::RunNWSync(base::ListValue* response, std::string* error) {
   response->AppendString(browser_context()->GetPath().value());
   return true;
