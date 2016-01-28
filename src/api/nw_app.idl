@@ -7,6 +7,7 @@
 namespace nw.App {
   callback EventCallback = void();
   callback ProxyEventCallback = void(DOMString url, DOMString proxy);
+  callback AuthEventCallback = void(DOMString url, DOMString user, DOMString password);
   interface Functions {
     // crash the renderer for testing
     [nocompile] static void crashRenderer();
@@ -22,6 +23,7 @@ namespace nw.App {
     static void clearAppCache(DOMString manifest_url);
     static void setProxyConfig(DOMString config);
     static void getHttpProxy(DOMString url, ProxyEventCallback callback);
+    static void getHttpAuth(DOMString url, DOMString realm, DOMString scheme, optional AuthEventCallback callback, optional long deep, optional DOMString token);
     [nocompile] static DOMString getProxyForURL(DOMString url);
     [nocompile] static void addOriginAccessWhitelistEntry(DOMString sourceOrigin, DOMString destinationProtocol, DOMString destinationHost, boolean allowDestinationSubdomains);
     [nocompile] static void removeOriginAccessWhitelistEntry(DOMString sourceOrigin, DOMString destinationProtocol, DOMString destinationHost, boolean allowDestinationSubdomains);
