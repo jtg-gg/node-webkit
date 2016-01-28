@@ -9,6 +9,7 @@
 #include "chrome/browser/extensions/devtools_util.h"
 #include "chrome/browser/extensions/extension_service.h"
 #include "content/nw/src/nw_base.h"
+#include "content/nw/src/nw_content.h"
 #include "content/public/browser/render_process_host.h"
 #include "content/public/browser/render_view_host.h"
 #include "content/public/browser/storage_partition.h"
@@ -17,7 +18,9 @@
 #include "extensions/browser/app_window/app_window_registry.h"
 #include "extensions/browser/app_window/native_app_window.h"
 #include "extensions/browser/extension_system.h"
+#include "extensions/browser/event_router.h"
 #include "extensions/common/error_utils.h"
+#include "net/base/layered_network_delegate.h"
 #include "net/proxy/proxy_config.h"
 #include "net/proxy/proxy_config_service_fixed.h"
 #include "net/proxy/proxy_service.h"
@@ -169,6 +172,165 @@ bool NwAppSetProxyConfigFunction::RunNWSync(base::ListValue* response, std::stri
   return true;
 }
 
+static void DispatchEvent(
+  const std::string token,
+  const scoped_refptr<UIThreadExtensionFunction>& caller,
+  base::ListValue* results) {
+
+  std::unique_ptr<base::ListValue> arguments(results);
+  std::unique_ptr<extensions::Event> event(
+    new extensions::Event(extensions::events::UNKNOWN,
+      token, std::move(arguments)));
+
+  EventRouter::Get(caller->browser_context())->DispatchEventToExtension(
+    caller->extension_id(), std::move(event));
+}
+
+class NWJSNetworkDelegate : public net::LayeredNetworkDelegate {
+private:
+  struct EventToken {
+    std::string proxy_;
+    typedef std::pair<std::string,scoped_refptr<UIThreadExtensionFunction>> TokenCaller;
+    std::list<TokenCaller> tokens_callers_;
+  };
+  std::map<const std::string, EventToken> url_proxy_map_;
+  
+  void HandleURLProxyListener(const net::URLRequest* request, const net::HostPortPair* proxy = NULL, bool run_callback = false) {
+    const std::string urlSpec = request->original_url().spec();
+    std::map<const std::string, EventToken>::iterator i = url_proxy_map_.find(urlSpec);
+
+    if (i != url_proxy_map_.end()) {
+      if (proxy == NULL) proxy = &request->proxy_server();
+      if (proxy->HostForURL().length()) i->second.proxy_ = proxy->ToString();
+      if (run_callback) {
+        //send final proxy result to JS
+        for (auto c : i->second.tokens_callers_) {
+          base::ListValue* results = new base::ListValue();
+          results->AppendString(urlSpec);
+          results->AppendString(i->second.proxy_);
+
+          content::BrowserThread::PostTask(
+            content::BrowserThread::UI, FROM_HERE,
+            base::Bind(&DispatchEvent, c.first, c.second,
+                       results));
+        }
+
+        url_proxy_map_.erase(i);
+      }
+    }
+  }
+  
+  void OnHeadersReceivedInternal(
+      net::URLRequest* request,
+      const net::CompletionCallback& callback,
+      const net::HttpResponseHeaders* original_response_headers,
+      scoped_refptr<net::HttpResponseHeaders>* override_response_headers,
+      GURL* allowed_unsafe_redirect_url) override {
+    HandleURLProxyListener(request);
+  }
+  
+  void OnCompletedInternal(net::URLRequest* request, bool started) override {
+    HandleURLProxyListener(request, NULL, true);
+  }
+  
+  void OnAuthRequiredInternal(
+      net::URLRequest* request,
+      const net::AuthChallengeInfo& auth_info,
+      const AuthCallback& callback,
+      net::AuthCredentials* credentials) override {
+    net::HostPortPair proxy = net::HostPortPair::FromString(auth_info.challenger.Serialize());
+    HandleURLProxyListener(request, &proxy);
+  }
+  
+  NWJSNetworkDelegate(std::unique_ptr<net::NetworkDelegate> network_delegate) :
+    LayeredNetworkDelegate(std::move(network_delegate)) {
+  }
+  
+  ~NWJSNetworkDelegate() override {}
+  
+  bool AddURLProxyListener(  UIThreadExtensionFunction* caller, const std::string& url, const std::string& token) {
+    std::map<const std::string, EventToken>::iterator i = url_proxy_map_.find(url);
+    if (i == url_proxy_map_.end()) {
+      EventToken eventToken;
+      eventToken.proxy_ = "";
+      eventToken.tokens_callers_.push_back(EventToken::TokenCaller(token,caller));
+      url_proxy_map_.insert(std::pair<const std::string, EventToken>(url, eventToken));
+      return true;
+    }
+    // url aready exist, replace the token event in the map
+    i->second.tokens_callers_.push_back(EventToken::TokenCaller(token,caller));
+    return false;
+  }
+
+public:
+
+  static bool AddURLProxyListener(net::URLRequestContext* url_request_context, UIThreadExtensionFunction* caller,
+                                  const std::string& url, const std::string& token) {
+    net::NetworkDelegate* network_delegate = url_request_context->network_delegate();
+    static std::set<net::NetworkDelegate*> all_instance;
+
+    if(all_instance.find(network_delegate) == all_instance.end()) {
+      std::unique_ptr<net::NetworkDelegate> nd(network_delegate);
+      network_delegate = new NWJSNetworkDelegate(std::move(nd));
+      all_instance.insert(network_delegate);
+      //this is where we inject our NWJSNetworkDelegate
+      url_request_context->set_network_delegate(network_delegate);
+    }
+
+    NWJSNetworkDelegate* nd = static_cast<NWJSNetworkDelegate*>(network_delegate);
+    return nd->AddURLProxyListener(caller, url, token);
+  }
+};
+  
+NwAppGetHttpProxyFunction::NwAppGetHttpProxyFunction() {
+}
+  
+NwAppGetHttpProxyFunction::~NwAppGetHttpProxyFunction() {
+}
+
+static void GetHttpProxyCallbackIO(
+  const scoped_refptr<UIThreadExtensionFunction>& caller,
+  const scoped_refptr<net::URLRequestContextGetter>& url_request_context_getter,
+  const std::string url, const std::string token) {
+  net::URLRequestContext* rc = url_request_context_getter->GetURLRequestContext();
+  NWJSNetworkDelegate::AddURLProxyListener(rc, caller.get(), url, token);
+
+  base::ListValue* results = new base::ListValue();
+  results->AppendString(url);
+
+  //send first event to JS to make the http header URL request
+  content::BrowserThread::PostTask(
+    content::BrowserThread::UI, FROM_HERE,
+    base::Bind(&DispatchEvent, token, caller,
+              results));
+}
+
+bool NwAppGetHttpProxyFunction::RunNWSync(base::ListValue *response, std::string *error) {
+  std::string url;
+  EXTENSION_FUNCTION_VALIDATE(args_->GetString(0, &url));
+  const GURL gurl(url);
+  if (!gurl.is_valid() || !gurl.SchemeIsHTTPOrHTTPS()) {
+    response->AppendBoolean(false);
+    return true;
+  }
+  
+  const std::string token = "getHttpProxy " + url;
+  // this is important for to "format" the url
+  url = gurl.spec();
+
+  content::RenderProcessHost* render_process_host = GetSenderWebContents()->GetRenderProcessHost();
+  net::URLRequestContextGetter* context_getter =
+    render_process_host->GetStoragePartition()->GetURLRequestContext();
+
+  content::BrowserThread::PostTask(
+      content::BrowserThread::IO, FROM_HERE,
+      base::Bind(&GetHttpProxyCallbackIO, make_scoped_refptr(this), make_scoped_refptr(context_getter),
+                 url, token));
+
+  response->AppendBoolean(true);
+  return true;
+}
+  
 bool NwAppGetDataPathFunction::RunNWSync(base::ListValue* response, std::string* error) {
   response->AppendString(browser_context()->GetPath().value());
   return true;
