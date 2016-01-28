@@ -21,6 +21,8 @@
 #include "extensions/browser/event_router.h"
 #include "extensions/common/error_utils.h"
 #include "net/base/layered_network_delegate.h"
+#include "net/http/http_transaction_factory.h"
+#include "net/http/http_auth.h"
 #include "net/proxy/proxy_config.h"
 #include "net/proxy/proxy_config_service_fixed.h"
 #include "net/proxy/proxy_service.h"
@@ -328,6 +330,84 @@ bool NwAppGetHttpProxyFunction::RunNWSync(base::ListValue *response, std::string
                  url, token));
 
   response->AppendBoolean(true);
+  return true;
+}
+  
+NwAppGetHttpAuthFunction::NwAppGetHttpAuthFunction() {
+}
+
+NwAppGetHttpAuthFunction::~NwAppGetHttpAuthFunction() {
+}
+
+static void GetHttpAuthCallbackIO(
+    const scoped_refptr<net::URLRequestContextGetter>& url_request_context_getter,
+    const scoped_refptr<UIThreadExtensionFunction>& caller,
+    const GURL gurl, std::string realm, std::string scheme, int deep, std::string token) {
+  net::HttpAuthCache* auth_cache =
+    url_request_context_getter->GetURLRequestContext()->http_transaction_factory()->GetSession()->http_auth_cache();
+  
+  net::HttpAuth::Scheme httpScheme;
+  for(int i=0; i<net::HttpAuth::AUTH_SCHEME_MAX; i++) {
+    httpScheme = static_cast<net::HttpAuth::Scheme>(i);
+    if(scheme.compare(net::HttpAuth::SchemeToString(httpScheme))==0)
+      break;
+  }
+  
+  net::AuthCredentials credentials;
+  net::HttpAuthCache::Entry* entry = auth_cache->Lookup(gurl.GetOrigin(), realm, httpScheme);
+  if (entry == NULL)
+    entry = auth_cache->LookupByPath(gurl.GetOrigin(), gurl.path());
+
+  if (entry) {
+    credentials = entry->credentials();
+    realm = entry->realm();
+    scheme = net::HttpAuth::SchemeToString(entry->scheme());
+  }
+
+  base::ListValue* results = new base::ListValue();
+  if (credentials.username().length() || credentials.password().length()) {
+    results->AppendString(gurl.spec());
+    results->AppendString(credentials.username());
+    results->AppendString(credentials.password());
+  } else {
+    results->AppendString(token);
+    results->AppendString(gurl.spec());
+    results->AppendString(realm);
+    results->AppendString(scheme);
+    results->AppendInteger(deep);
+  }
+
+  content::BrowserThread::PostTask(
+    content::BrowserThread::UI, FROM_HERE,
+    base::Bind(&DispatchEvent, token, caller,
+              results));
+}
+
+bool NwAppGetHttpAuthFunction::RunNWSync(base::ListValue* response, std::string* error) {
+  std::string url, realm, scheme, token;
+  int deep;
+  EXTENSION_FUNCTION_VALIDATE(args_->GetString(0, &url));
+  const GURL gurl(url);
+  if (!gurl.is_valid() || !gurl.SchemeIsHTTPOrHTTPS()) {
+    response->AppendBoolean(false);
+    return false;
+  }
+
+  EXTENSION_FUNCTION_VALIDATE(args_->GetString(1, &realm));
+  EXTENSION_FUNCTION_VALIDATE(args_->GetString(2, &scheme));
+  EXTENSION_FUNCTION_VALIDATE(args_->GetInteger(4, &deep));
+  EXTENSION_FUNCTION_VALIDATE(args_->GetString(5, &token));
+  
+  content::RenderProcessHost* render_process_host = GetSenderWebContents()->GetRenderProcessHost();
+  net::URLRequestContextGetter* context_getter =
+    render_process_host->GetStoragePartition()->GetURLRequestContext();
+  
+  content::BrowserThread::PostTask(
+    content::BrowserThread::IO, FROM_HERE,
+    base::Bind(&GetHttpAuthCallbackIO, make_scoped_refptr(context_getter),
+      make_scoped_refptr(this), gurl, realm, scheme, deep, token));
+  response->AppendBoolean(true);
+
   return true;
 }
   
