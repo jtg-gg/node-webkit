@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <title>getHttpProxy</title>
+</head>
+<body>
+  <script>
+
+const http_url    = 'http://dl.nwjs.io/v0.12.3/MD5SUMS';
+const http_url2   =  http_url + '/';
+const https_url2  = 'https://www.google.com';
+const https_url   =  https_url2 + '/';
+const http_dummy2 = 'http://dummy.dummy';
+const http_dummy  =  http_dummy2 + '/';
+const https_multibyte = 'https://content-dev-gate.vcube.sg/s/Zke7GWPp0e/f/5e905b3532e3d91f4bd53867677f74bf0677a446/1456796507089/サンプルPDF.pdf';
+const http_proxy  = '52.76.11.196:80';
+const https_proxy = '52.76.11.196:8080';
+
+function setGoodProxy() {
+  nw.App.setProxyConfig("http=bla.bla,"+http_proxy+";https=bla,bla,"+https_proxy);
+}
+  
+function onAuth(details) {
+  return {
+    authCredentials: {
+      username: "test",
+      password: "password"
+    }
+  };
+}
+  
+chrome.webRequest.onAuthRequired.addListener(onAuth,
+                                             {urls: ["<all_urls>"]},
+                                             ['blocking']);
+
+function httpTest1(expected_proxy, result_cb) {
+nw.App.getHttpProxy(http_url,
+                    function(url, proxy) {
+                    document.getElementById("output").innerHTML += "httpProxy nwjs url:" + url + " proxy:" + proxy + "<br>";
+                    result_cb(url == http_url && proxy == expected_proxy)
+                    });
+}
+
+function httpTest2(expected_proxy, result_cb) {
+nw.App.getHttpProxy(http_url,
+                     function(url, proxy) {
+                     document.getElementById("output").innerHTML += "httpProxy nwjs url2:" + url + " proxy:" + proxy + "<br>";
+                     result_cb(url == http_url && proxy == expected_proxy, 2)
+                     });
+}
+  
+function httpsTest1(expected_proxy, result_cb) {
+nw.App.getHttpProxy(https_url,
+                    function(url, proxy) {
+                    document.getElementById("output").innerHTML += "httpProxy google url:" + url + " proxy:" + proxy + "<br>";
+                    result_cb(url == https_url && proxy == expected_proxy)
+                    });
+}
+  
+function httpsTest2(expected_proxy, result_cb) {
+nw.App.getHttpProxy(https_url,
+                    function(url, proxy) {
+                    document.getElementById("output").innerHTML += "httpProxy google url2:" + url + " proxy:" + proxy + "<br>";
+                    result_cb(url == https_url && proxy == expected_proxy, 2)
+                    });
+}
+
+function urlTest(test_url, expected_proxy, result_cb) {
+nw.App.getHttpProxy(test_url,
+                     function(url, proxy) {
+                     document.getElementById("output").innerHTML += "httpProxy " + test_url + " url:" + url + " proxy:" + proxy + "<br>";
+                     url_test = new URL(test_url);
+                     result_cb(test_url, url == url_test.href && proxy == expected_proxy)
+                     });
+}
+  function writeSuccess(id) {
+    var result = document.createElement('p');
+    result.setAttribute('id', 'result' + id);
+    result.innerHTML = 'success '+ id;
+    document.body.appendChild(result);
+  }
+
+  function writeFailure(e, id) {
+    var result = document.createElement('p');
+    result.setAttribute('id', 'result' + id);
+    result.innerHTML = 'failure ' + id + ' [' + e + ']';
+    document.body.appendChild(result);
+  }
+  
+  function runTest1() {
+    setGoodProxy();
+    httpTest1(http_proxy, function(res){res ? writeSuccess(1) : writeFailure('',1)});
+  }
+  
+  function runTest2() {
+    setGoodProxy();
+    httpsTest1(https_proxy, function(res){res ? writeSuccess(2) : writeFailure('',2)});
+  }
+  
+  function runTest3() {
+    setGoodProxy();
+    const testID = 3;
+    const numRes = 2;
+    var curRes = 0;
+    function testRes(res) {
+      if(!res) {writeFailure('', testID); curRes=0;}
+      if(++curRes == numRes)
+        writeSuccess(testID);
+    }
+    httpTest1(http_proxy, testRes);
+    httpsTest1(https_proxy, testRes);
+  }
+  
+  function runTest4() {
+    setGoodProxy();
+    const testID = 4;
+    const numRes = 2;
+    var curRes = [0,0];
+    function testRes(res, id) {
+      if(!res || curRes[0] > numRes || curRes[1] > numRes) {
+        writeFailure('', testID); curRes=[-1,-1];return;
+      }
+      curRes[id==2?1:0]++;
+
+      if(curRes[0] == numRes && curRes[1] == numRes)
+        writeSuccess(testID);
+    }
+    httpTest1(http_proxy, testRes);
+    httpsTest1(https_proxy, testRes);
+    httpTest2(http_proxy, testRes);
+    httpsTest2(https_proxy, testRes);
+  }
+  
+  function runTest5() {
+    nw.App.setProxyConfig("http=bla.bla,52.76.11.196:800;https=bla,bla,52.76.11.196:800");
+    const testID = 5;
+    const numRes = 2;
+    var curRes = [0,0];
+    function testRes(res, id) {
+      if(!res || curRes[0] > numRes || curRes[1] > numRes) {
+        writeFailure('', testID); curRes=[-1,-1];return;
+      }
+      curRes[id==2?1:0]++;
+      
+      if(curRes[0] == numRes && curRes[1] == numRes)
+      writeSuccess(testID);
+    }
+    httpTest1("", testRes);
+    httpsTest1("", testRes);
+    httpTest2("", testRes);
+    httpsTest2("", testRes);
+  }
+  
+  function runTest6() {
+    nw.App.setProxyConfig("http=bla.bla,52.76.11.196:800;https=bla,bla,52.76.11.196:800");
+    const testID = 6;
+    const numRes = 6;
+    var curRes = 0;
+    function testRes(url, res) {
+      if(!res) {writeFailure(url, testID); curRes=0;}
+      if(++curRes == numRes)
+      writeSuccess(testID);
+    }
+    urlTest(http_dummy, "", testRes);
+    urlTest(http_dummy2, "", testRes);
+    urlTest(https_url, "", testRes);
+    urlTest(https_url2, "", testRes);
+    urlTest(http_url, "", testRes);
+    urlTest(http_url2, "", testRes);
+  }
+  
+  function runTest7() {
+    setGoodProxy();
+    const testID = 7;
+    const numRes = 6;
+    var curRes = 0;
+    function testRes(url, res) {
+      if(!res) {writeFailure(url, testID); curRes=0;}
+      if(++curRes == numRes)
+      writeSuccess(testID);
+    }
+    urlTest(http_dummy, http_proxy, testRes);
+    urlTest(http_dummy2, http_proxy, testRes);
+    urlTest(https_url, https_proxy, testRes);
+    urlTest(https_url2, https_proxy, testRes);
+    urlTest(http_url, http_proxy, testRes);
+    urlTest(http_url2, http_proxy, testRes);
+  }
+  
+  function runTest8() {
+    setGoodProxy();
+    const testID = 8;
+    const numRes = 1;
+    var curRes = 0;
+    function testRes(url, res) {
+      if(!res) {writeFailure(url, testID); curRes=0;}
+      if(++curRes == numRes)
+      writeSuccess(testID);
+    }
+    urlTest(https_multibyte, https_proxy, testRes);
+  }
+
+  </script>
+  <button id="test1" onclick="runTest1()">single http  getProxy</button>
+  <button id="test2" onclick="runTest2()">single https getProxy</button>
+  <button id="test3" onclick="runTest3()">concurent httpGetProxy with different url</button>
+  <button id="test4" onclick="runTest4()">concurent httpGetProxy with same url</button>
+  <button id="test5" onclick="runTest5()">concurent httpGetProxy with same url with dummy proxy</button>
+  <button id="test6" onclick="runTest6()">url ends without '/' using dummy proxy</button>
+  <button id="test7" onclick="runTest7()">url ends without '/' using good proxy</button>
+  <button id="test8" onclick="runTest8()">multibyte url using good proxy</button>
+  <p id="output">
+</body>
+</html>
