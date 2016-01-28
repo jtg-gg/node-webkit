@@ -1,5 +1,6 @@
 var nwNatives = requireNative('nw_natives');
-
+var NWEventTokens = {};
+var getHttpProxyHandler = bindingUtil.createCustomEvent("getHttpProxy", undefined, false, false);
 var fullArgv = null;
 var dataPath;
 
@@ -53,6 +54,61 @@ apiBridge.registerCustomHook(function(bindingsAPI) {
   });
   apiFunctions.setHandleRequest('setProxyConfig', function() {
     bindingUtil.sendRequestSync('nw.App.setProxyConfig', $Array.from(arguments), undefined, undefined);
+  });
+  function getNWEvent(token) {
+    var event;
+    if (NWEventTokens[token]) {
+      event = NWEventTokens[token];
+    } else {
+      event = bindingUtil.createCustomEvent(undefined, undefined, false, false);
+      NWEventTokens[token] = event;
+    }
+    return event;
+  }
+  function cleanNWEvent(token) {
+    bindingUtil.invalidateEvent(NWEventTokens[token]);
+    delete NWEventTokens[token];
+  }
+  getHttpProxyHandler.addListener(function() {
+    var token = arguments[2];
+    var event = getNWEvent(token);
+    //remove "getHttpProxy" from token to get back the original user requested url
+    var url = token.substring(13);
+    event.dispatch(url, arguments[1]);
+    cleanNWEvent(token);
+  });
+  apiFunctions.setHandleRequest('getHttpProxy', function(url, callback) {
+    var token = 'getHttpProxy ' + url;
+    //since chrome52 there is an cache issue with http request, however if we add '?', it is guaranteed the http request is not cached
+    var queryIdx = url.indexOf('?');
+    if(queryIdx == -1)
+      url = url + '?';
+    var res = false;
+    try {
+     var protocol = new URL(url).protocol;
+     res = protocol == "http:" || protocol == "https:";
+    } catch (_) {
+      res = false;
+    }
+    if (res && typeof callback == 'function') {
+      fetch(url, {method:"HEAD"})
+      .then(function() {
+        var event = getNWEvent(token);
+        event.addListener(callback);
+        res = bindingUtil.sendRequestSync('nw.App.getHttpProxy', [url, callback, token], undefined, undefined);
+        if (!res) {
+          // if success cleanNWEvent will be done by getHttpProxyHandler
+          cleanNWEvent(token);
+        }
+      })
+      .catch(function() {
+        //error, means "empty" proxy
+        //remove "getHttpProxy" from token to get back the original user requested url
+        callback(token.substring(13), "");
+      });
+      return true;
+    }
+    return false;
   });
   apiFunctions.setHandleRequest('clearCache', function() {
     bindingUtil.sendRequestSync('nw.App.clearCache', $Array.from(arguments), undefined, undefined);
