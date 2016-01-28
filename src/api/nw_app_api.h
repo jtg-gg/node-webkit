@@ -106,6 +106,20 @@ class NwAppGetHttpProxyFunction : public NWSyncExtensionFunction {
   DISALLOW_COPY_AND_ASSIGN(NwAppGetHttpProxyFunction);
 };
 
+class NwAppGetHttpAuthFunction : public NWSyncExtensionFunction {
+public:
+  NwAppGetHttpAuthFunction();
+  bool RunNWSync(base::ListValue* response, std::string* error) override;
+  
+protected:
+  ~NwAppGetHttpAuthFunction() override;
+  
+  
+  DECLARE_EXTENSION_FUNCTION("nw.App.getHttpAuth", UNKNOWN)
+private:
+  DISALLOW_COPY_AND_ASSIGN(NwAppGetHttpAuthFunction);
+};
+
 class NwAppGetDataPathFunction : public NWSyncExtensionFunction {
  public:
   NwAppGetDataPathFunction(){}
