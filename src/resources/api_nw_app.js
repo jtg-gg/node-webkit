@@ -100,6 +100,57 @@ nw_binding.registerCustomHook(function(bindingsAPI) {
   apiFunctions.setHandleRequest('clearAppCache', function() {
     sendRequest.sendRequestSync('nw.App.clearAppCache', arguments, this.definition.parameters, {});
   });
+  apiFunctions.setHandleRequest('getHttpAuth', function(url, realm, scheme, callback, deep, token) {
+    var event = null
+    if (deep == null) deep = 0;
+    if (token == null) {
+      token = 'getHttpAuth ' + url;
+      event = createNWEvent(token);
+      event.addListener(function getHttpAuthListener() {
+        if (arguments.length >= 5) {
+          var ev = arguments[0];
+          var url = arguments[1];
+          var realm = arguments[2];
+          var scheme = arguments[3];
+          var deep = arguments[4];
+
+          if (deep == 0) {
+            var http = new window.XMLHttpRequest();
+            http.open("head", url, true);
+            http.onreadystatechange = function (aEvt) {
+              if (http.readyState == 4) {
+                if(http.status != 407)
+                  nw.App.getHttpAuth(url, realm, scheme, null, deep + 1, ev);
+                else {
+                  var newArguments = [url, '', ''];
+                  callback.apply(self, newArguments);
+                  cleanNWEvent(event, getHttpAuthListener, token);
+                }
+              }
+            };
+            http.send();
+            return;
+          }
+          var newArguments = [url, '', ''];
+          callback.apply(self, newArguments);
+          cleanNWEvent(event, getHttpAuthListener, token);
+          return;
+        }
+        // Call parent.
+        callback.apply(self, arguments);
+        cleanNWEvent(event, getHttpAuthListener, token);
+      });
+    }
+    arguments[4] = deep; arguments[5] = token;
+    var res = sendRequest.sendRequestSync('nw.App.getHttpAuth', arguments, this.definition.parameters, {});
+    if (res && typeof callback == 'function') {
+      return true;
+    }
+    //clean up the event
+    if (event)
+      cleanNWEvent(event, getHttpAuthListener, token);
+    return false;
+  });
   apiFunctions.setHandleRequest('getProxyForURL', function() {
     return nwNatives.getProxyForURL.apply(this, arguments);
   });
