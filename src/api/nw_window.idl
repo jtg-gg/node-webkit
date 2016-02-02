@@ -30,6 +30,7 @@ namespace nw.Window {
     [nodoc] boolean? show;
     [nodoc] boolean? always_on_top;
     [nodoc] boolean? visible_on_all_workspaces;
+    [nodoc] boolean? force_enable_drag_region;
     [nodoc] boolean? transparent;
     [nodoc] boolean? kiosk;
     [nodoc] boolean? focus;
