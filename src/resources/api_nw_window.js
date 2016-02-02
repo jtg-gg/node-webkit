@@ -670,6 +670,8 @@ nw_binding.registerCustomHook(function(bindingsAPI) {
         options.inject_js_start = params['inject_js_start'];
       if (typeof params['inject_js_end'] == 'string')
         options.inject_js_end = params['inject_js_end'];
+      if (params.force_enable_drag_region)
+        options.force_enable_drag_region = true;
       if (params.transparent)
         options.alphaEnabled = true;
       if (params.kiosk === true)
