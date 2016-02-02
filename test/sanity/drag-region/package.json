@@ -1,0 +1,12 @@
+{
+  "name": "chrome_app_frameless",
+  "main": "frameless_window.html",
+  "window": {
+    "title": "chrome_app_frameless",
+    "toolbar": false,
+    "frame": true,
+	  "transparent": false,
+	  "resizable": true,
+	  "force_enable_drag_region": true
+  }
+}
