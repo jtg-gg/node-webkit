@@ -1,0 +1,8 @@
+{
+  "name": "sqlite-encryption",
+  "main": "index.html",
+  "window": {
+    "width": 600,
+    "height": 600
+  }
+}
