@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <title>SQLite-encryption</title>
+</head>
+<body>
+  <script>
+
+function runTest(key, insertData) {
+try {
+  var db = openDatabase('jef1db', '1.0', 'Jef1 DB', 2 * 1024 * 1024, key);
+  var msg;
+  
+  function insert(tx) {
+    tx.executeSql('CREATE TABLE IF NOT EXISTS LOGS (id unique, log)');
+    tx.executeSql('INSERT INTO LOGS (id, log) VALUES (1, "foobar")');
+    tx.executeSql('INSERT INTO LOGS (id, log) VALUES (2, "logmsg")');
+    msg = 'Log message created and row inserted.<br>';
+    write(msg);
+  }
+  
+  if(insertData)
+    db.transaction(insert);
+  
+  function result(tx, results) {
+    var len = results.rows.length, i;
+    msg = "Found rows: " + len + "<br>";
+    write(msg);
+    
+    for (i = 0; i < len; i++){
+      msg = "<b>" + results.rows.item(i).id + " " + results.rows.item(i).log + "</b><br>";
+      write(msg);
+    }
+    
+    if (len == 2 && results.rows[0].id == 1 && results.rows[0].log == "foobar" &&
+        results.rows[1].id == 2 && results.rows[1].log == "logmsg") {
+        writeSuccess();
+    }
+    
+  }
+  
+  function select(tx) {
+    tx.executeSql('SELECT * FROM LOGS', [], result, null);
+  }
+  
+  db.transaction(select);
+} catch(e) {
+  writeFailure(e);
+}
+}
+
+  function write(msg) {
+    document.getElementById("output").innerHTML += msg;
+  }
+  
+  function writeSuccess() {
+    var result = document.createElement('p');
+    result.setAttribute('id', 'result');
+    result.innerHTML = 'success';
+    document.body.appendChild(result);
+  }
+  
+  function writeFailure(e) {
+    var result = document.createElement('p');
+    result.setAttribute('id', 'result');
+    result.innerHTML = 'failure [' + e + ']';
+    document.body.appendChild(result);
+  }
+  </script>
+  <button id="Create" onclick="runTest('PRAGMA KEY=test123', true)">Create and Read</button>
+  <button id="Read" onclick="runTest('PRAGMA KEY=test123')">Read</button>
+  <button id="Rekey" onclick="runTest('PRAGMA KEY=test123; PRAGMA REKEY=123')">Rekey</button>
+  <button id="ReadRekey" onclick="runTest('PRAGMA KEY=123')">Read Rekey</button>
+  <button id="WrongKey" onclick="runTest('PRAGMA KEY=test123')">Wrong Key</button>
+  <p id="output" />
+</body>
+</html>
