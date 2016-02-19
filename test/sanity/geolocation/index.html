@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <title>geolocation</title>
+</head>
+<body>
+  <script>
+
+  function navShowPosition(position, id) {
+    lat = position.coords.latitude;
+    lon = position.coords.longitude;
+    document.getElementById("output").innerHTML += "navShowPosition lat:" + lat + " lon:" + lon + " accuracy:" + position.coords.accuracy +"<br>";
+    document.getElementById("output").innerHTML += "navShowPosition alt:" + position.coords.altitude + " accuracy:" + position.coords.altitudeAccuracy + "<br>";
+  
+    if (position.coords.accuracy < 200) writeSuccess(id);
+    else writeFailure('accuracy >= 200', id);
+  }
+  
+  function navShowError(error, id) {
+    switch(error.code) {
+      case error.PERMISSION_DENIED:
+		    document.getElementById("output").innerHTML += "User denied the request for Geolocation.<br>";
+        break;
+        case error.POSITION_UNAVAILABLE:
+        document.getElementById("output").innerHTML += "Location information is unavailable.<br>";
+        break;
+        case error.TIMEOUT:
+        document.getElementById("output").innerHTML += "The request to get user location timed out.<br>";
+        break;
+        case error.UNKNOWN_ERROR:
+        document.getElementById("output").innerHTML += "An unknown error occurred.<br>";
+        break;
+    }
+    writeFailure(error, id);
+  }
+
+  function write(msg) {
+    document.getElementById("output").innerHTML += msg;
+  }
+  
+  function writeSuccess(id) {
+    var result = document.createElement('p');
+    result.setAttribute('id', 'result' + id);
+    result.innerHTML = 'success '+ id;
+    document.body.appendChild(result);
+  }
+  
+  function writeFailure(e, id) {
+    var result = document.createElement('p');
+    result.setAttribute('id', 'result' + id);
+    result.innerHTML = 'failure ' + id + ' [' + e + ']';
+    document.body.appendChild(result);
+  }
+
+  
+  function test1() {
+    const testId = 1;
+    function funcCb(param) {
+      if (param.coords)
+        navShowPosition(param, testId);
+      else
+        navShowError(param, testId);
+    }
+    navigator.geolocation.getCurrentPosition(funcCb, funcCb, {enableHighAccuracy: true});
+  }
+  </script>
+  <button id="test1" onclick="test1()">test1</button>
+  <p id="output" />
+</body>
+</html>
