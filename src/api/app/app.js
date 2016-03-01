@@ -114,6 +114,7 @@ AppEvent.prototype.handleEvent = function (ev) {
 }
 
 App.prototype.getHttpAuth = function (url, realm, scheme, callback, deep, token) {
+  url = encodeURI(url);
   if (appEvent == null) {
     appEvent = new AppEvent();
   }
@@ -139,6 +140,7 @@ App.prototype.getHttpAuth = function (url, realm, scheme, callback, deep, token)
 }
 
 App.prototype.getHttpProxy = function (url, callback) {
+  url = encodeURI(url);
   if (appEvent == null) {
     appEvent = new AppEvent();
   }

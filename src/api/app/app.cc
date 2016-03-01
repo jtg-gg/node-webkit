@@ -281,7 +281,7 @@ void App::Call(Shell* shell,
       result->AppendBoolean(false);
       return;
     }
-
+    url = gurl.spec();
     arguments.GetString(2, &realm);
     arguments.GetString(3, &scheme);
     arguments.GetInteger(4, &deep);
@@ -310,6 +310,7 @@ void App::Call(Shell* shell,
       return;
     }
     arguments.GetString(2, &token);
+    url = gurl.spec();
     
     int object_id = 0;
     arguments.GetInteger(0, &object_id);
