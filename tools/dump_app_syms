@@ -34,7 +34,7 @@ echo "bb"
 fi
 
 if [ "$STRIP_BINARY" != "0" ]; then
-  strip "$INFILE"
+  "$STRIP_BINARY" "$INFILE"
 # To avoid dumpping twice.
 echo "aa"
   touch "$OUTFILE"

@@ -331,7 +331,11 @@ if (is_mac && !is_component_build) {
 }
 
 if (is_linux && !is_component_build) {
-  linux_strip_binary = 1
+  if (target_cpu == "arm") {
+    linux_strip_binary = "arm-linux-gnueabihf-strip"
+  } else {
+    linux_strip_binary = "strip"
+  }
   arch_pkgname = target_cpu
   if (target_cpu == "x86") {
     arch_pkgname = "ia32"
