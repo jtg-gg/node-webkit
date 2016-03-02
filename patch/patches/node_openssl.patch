@@ -1,0 +1,12 @@
+diff --git a/deps/openssl/openssl.gyp b/deps/openssl/openssl.gyp
+index ef8b740..db51229 100644
+--- deps/openssl/openssl.gyp
++++ deps/openssl/openssl.gyp
+@@ -14,6 +14,7 @@
+     'node_byteorder%': 'little',
+     'conditions': [
+       ['OS=="mac"', { 'openssl_no_asm%': 1 } ],
++      ['OS=="linux" and target_arch=="arm"', { 'openssl_no_asm%': 1 } ],
+     ],
+   },
+   'targets': [
