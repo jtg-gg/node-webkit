@@ -340,7 +340,6 @@ if (is_mac && !is_component_build) {
 }
 
 if (is_linux && !is_component_build) {
-  linux_strip_binary = 1
   arch_pkgname = target_cpu
   if (target_cpu == "x86") {
     arch_pkgname = "ia32"
@@ -376,6 +375,15 @@ if (is_linux && !is_component_build) {
       inputs = [
         "tools/dump_syms",
       ]
+    }
+    if (target_cpu == "arm") {
+      linux_strip_binary = "arm-linux-gnueabihf-strip"
+      sources -= ["$root_build_dir/swiftshader/libEGL.so",
+                  "$root_build_dir/swiftshader/libGLESv2.so"]
+      deps -= ["//third_party/swiftshader/src/OpenGL/libEGL:swiftshader_libEGL",
+               "//third_party/swiftshader/src/OpenGL/libGLESv2:swiftshader_libGLESv2"]
+    } else {
+      linux_strip_binary = "strip"
     }
     if (enable_nacl) {
       sources += [ "$root_build_dir/nacl_helper" ]
