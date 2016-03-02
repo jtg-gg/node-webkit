@@ -1,0 +1,13 @@
+diff --git a/BUILD.gn b/BUILD.gn
+index 1d8f353..332243e 100644
+--- BUILD.gn
++++ BUILD.gn
+@@ -81,6 +81,8 @@ config("pdfium_core_config") {
+       cflags += [ "-fPIC" ]
+     } else if (current_cpu == "x86") {
+       defines += [ "_FX_CPU_=_FX_X86_" ]
++    } else if (current_cpu == "arm") {
++      cflags += [ "-Wno-deprecated-register" ]
+     }
+   }
+   if (is_win) {
