@@ -157,10 +157,11 @@ def generate_target_nw(platform_name, arch, version):
                            'v8_context_snapshot.bin',
                            'lib/libnw.so',
                            'lib/libnode.so',
-                           'lib/libffmpeg.so',
-                           'swiftshader/libEGL.so',
-                           'swiftshader/libGLESv2.so'
+                           'lib/libffmpeg.so'
                            ]
+        if arch != 'arm':
+            target['input'].append('swiftshader/libEGL.so')
+            target['input'].append('swiftshader/libGLESv2.so')
         if flavor == 'sdk':
             target['input'].append('nwjc')
             target['input'].append('payload')
@@ -170,6 +171,8 @@ def generate_target_nw(platform_name, arch, version):
             target['input'] += ['nacl_helper', 'nacl_helper_bootstrap', 'pnacl']
             if arch == 'x64':
                 target['input'].append('nacl_irt_x86_64.nexe')
+            elif arch == 'arm':
+                target['input'].append('nacl_irt_arm.nexe')
             else:
                 target['input'].append('nacl_irt_x86_32.nexe')
             
