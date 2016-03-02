@@ -1,0 +1,105 @@
+diff --git a/deps/nghttp2/nghttp2.gyp b/deps/nghttp2/nghttp2.gyp
+index ad9ea68..db3aba0 100644
+--- deps/nghttp2/nghttp2.gyp
++++ deps/nghttp2/nghttp2.gyp
+@@ -26,6 +26,9 @@
+             },
+           },
+         }],
++        ['target_arch=="arm"', {
++          'defines': ['HAVE_NETINET_IN_H'],
++        }],
+         ['0 == 1', {
+           'defines': [ 'DEBUGBUILD=1' ]
+         }]
+diff --git a/deps/openssl/openssl.gyp b/deps/openssl/openssl.gyp
+index cf136b7..9b3c580 100644
+--- deps/openssl/openssl.gyp
++++ deps/openssl/openssl.gyp
+@@ -6,6 +6,7 @@
+     'node_byteorder%': 'little',
+     'conditions': [
+       ['OS=="mac"', { 'openssl_no_asm%': 1 } ],
++      ['OS=="linux" and target_arch=="arm"', { 'openssl_no_asm%': 1 } ],
+     ],
+   },
+   'targets': [
+diff --git a/deps/openssl/openssl_common.gypi b/deps/openssl/openssl_common.gypi
+index ef6b107..c48c5a1 100644
+--- deps/openssl/openssl_common.gypi
++++ deps/openssl/openssl_common.gypi
+@@ -59,8 +59,7 @@
+     }, {
+       # linux and others
+       'cflags': ['-Wno-missing-field-initializers',
+-                 ## TODO: check gcc_version>=4.3
+-                 '-Wno-old-style-declaration'],
++                ],
+       'defines': [
+         'OPENSSLDIR="/etc/ssl"',
+         'ENGINESDIR="/dev/null"',
+diff --git a/deps/uv/uv.gyp b/deps/uv/uv.gyp
+index a56fea7..b874410 100644
+--- deps/uv/uv.gyp
++++ deps/uv/uv.gyp
+@@ -218,6 +218,9 @@
+             '-Wno-varargs',
+           ],
+         }],
++        ['OS=="linux" and target_arch=="arm"', {
++          'cflags': ['--std=gnu99']
++        }],
+         [ 'OS in "mac ios"', {
+           'sources': [
+             'src/unix/darwin.c',
+diff --git a/node.gypi b/node.gypi
+index 86215bf..ca017b3 100644
+--- node.gypi
++++ node.gypi
+@@ -300,6 +300,17 @@
+                       #'-Wl,--no-whole-archive'
+                      ]
+     }],
++    ['OS=="linux" and target_arch=="arm"', {
++          'cflags' : [
++		    '-nostdinc++',
++            '-isystem../../buildtools/third_party/libc++/trunk/include',
++            '-isystem../../buildtools/third_party/libc++abi/trunk/include'
++          ],
++          'ldflags': [
++            '../nw/obj/buildtools/third_party/libc++/libc++/*.o',
++            '../nw/obj/buildtools/third_party/libc++abi/libc++abi/*.o',
++          ]
++    }],
+     [ 'OS=="mac" and component == "shared_library"', {
+       'xcode_settings': {
+         'OTHER_LDFLAGS': [
+diff --git a/src/node_contextify.cc b/src/node_contextify.cc
+index 507a6ac..a81054b 100644
+--- src/node_contextify.cc
++++ src/node_contextify.cc
+@@ -756,10 +756,10 @@ class ContextifyScript : public BaseObject {
+ 
+     ContextifyScript* wrapped_script;
+     ASSIGN_OR_RETURN_UNWRAP(&wrapped_script, args.Holder());
+-
++#ifndef _DEBUG
+     TRACE_EVENT_NESTABLE_ASYNC_BEGIN0(
+         TRACING_CATEGORY_NODE2(vm, script), "RunInThisContext", wrapped_script);
+-
++#endif
+     CHECK_EQ(args.Length(), 3);
+ 
+     CHECK(args[0]->IsNumber());
+@@ -773,9 +773,10 @@ class ContextifyScript : public BaseObject {
+ 
+     // Do the eval within this context
+     EvalMachine(env, timeout, display_errors, break_on_sigint, args);
+-
++#ifndef _DEBUG
+     TRACE_EVENT_NESTABLE_ASYNC_END0(
+         TRACING_CATEGORY_NODE2(vm, script), "RunInThisContext", wrapped_script);
++#endif
+   }
+ 
+   static void RunInContext(const FunctionCallbackInfo<Value>& args) {
