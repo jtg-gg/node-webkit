@@ -1,0 +1,15 @@
+diff --git a/deps/openssl/openssl.gyp b/deps/openssl/openssl.gyp
+index ef8b740..d7893d6 100644
+--- deps/openssl/openssl.gyp
++++ deps/openssl/openssl.gyp
+@@ -173,8 +173,8 @@
+           }],
+         ]
+       }],
+-      ['is_clang==1 or gcc_version>=43', {
+-        #'cflags': ['-Wno-error=unused-command-line-argument', '-Wno-error=parentheses-equality'],
++      ['target_arch=="arm"', {
++        'cflags': ['-no-integrated-as'],
+       }],
+       ['OS=="solaris"', {
+         'defines': ['__EXTENSIONS__'],
