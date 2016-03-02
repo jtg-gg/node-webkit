@@ -1,0 +1,19 @@
+diff --git a/node.gypi b/node.gypi
+index f165747..7ba2a48 100644
+--- node.gypi
++++ node.gypi
+@@ -350,7 +350,13 @@
+                       '<(V8_PLTFRM)',
+                       '-Wl,--no-whole-archive' ]
+     }],
+-    [ 'OS=="linux" and component != "shared_library"', {
++    [ 'OS=="linux" and component != "shared_library" and target_arch=="arm"', {
++          'ldflags': [ '-L<(PRODUCT_DIR)/../nw/lib/', '-lnw',
++                      '-Wl,--whole-archive <(V8_LIBBASE)',
++                      '<(V8_PLTFRM)',
++                      '-Wl,--no-whole-archive']
++    }],
++    [ 'OS=="linux" and component != "shared_library" and target_arch != "arm"', {
+           'ldflags': [ '-L<(PRODUCT_DIR)/../nw/lib/', '-lnw',
+                       #'-Wl,--whole-archive <(V8_LIBBASE)',
+                       #'<(V8_PLTFRM)',
