@@ -171,6 +171,8 @@ def generate_target_nw(platform_name, arch, version):
             target['input'] += ['nacl_helper', 'nacl_helper_bootstrap', 'pnacl']
             if arch == 'x64':
                 target['input'].append('nacl_irt_x86_64.nexe')
+            elif arch == 'arm':
+                target['input'].append('nacl_irt_arm.nexe')
             else:
                 target['input'].append('nacl_irt_x86_32.nexe')
             
@@ -256,6 +258,7 @@ def generate_target_symbols(platform_name, arch, version):
         target['input'] = [
             'nw.breakpad.' + arch,
             'node.so.breakpad.' + arch,
+            'ffmpeg.so.breakpad.' + arch,
             'nw.so.breakpad.' + arch
         ]
         if flavor in ['sdk', 'nacl']:

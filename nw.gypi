@@ -275,9 +275,17 @@
           ],
         }],
         ['OS=="linux"', {
-          'variables': {
-            'linux_strip_binary': 1,
-          },
+          'conditions': [
+            ['target_arch=="arm"', {
+              'variables': {
+                'linux_strip_binary': 'arm-linux-gnueabihf-strip',
+              },
+            }, {
+              'variables': {
+                'linux_strip_binary': 'strip',
+              },
+            }],
+          ],
           'actions': [
             {
               'action_name': 'dump_symbol_and_strip',
@@ -333,19 +341,45 @@
               'message': 'Dumping breakpad symbols to <(_outputs)',
               'process_outputs_as_sources': 1,
             },
+            {
+              'action_name': 'dump_symbol_and_strip_4',
+              'inputs': [
+                '<(DEPTH)/content/nw/tools/dump_app_syms',
+                '<(PRODUCT_DIR)/dump_syms',
+                '<(PRODUCT_DIR)/lib/libffmpeg.so',
+              ],
+              'outputs': [
+                '<(PRODUCT_DIR)/ffmpeg.so.breakpad.<(target_arch)',
+              ],
+              'action': ['<(DEPTH)/content/nw/tools/dump_app_syms',
+                         '<(PRODUCT_DIR)/dump_syms',
+                         '<(linux_strip_binary)',
+                         '<(PRODUCT_DIR)/lib/libffmpeg.so',
+                         '<@(_outputs)'],
+              'message': 'Dumping breakpad symbols to <(_outputs)',
+              'process_outputs_as_sources': 1,
+            },
           ],
           'dependencies': [
             'nwjs',
-            '../breakpad/breakpad.gyp:dump_syms',
+            '../breakpad/breakpad.gyp:dump_syms#host',
           ],
         }],
         ['OS=="linux" and disable_nacl==0', {
-          'variables': {
-            'linux_strip_binary': 1,
-          },
+          'conditions': [
+             ['target_arch=="arm"', {
+               'variables': {
+                 'linux_strip_binary': 'arm-linux-gnueabihf-strip',
+                },
+             }, {
+               'variables': {
+                 'linux_strip_binary': 'strip',
+               },
+            }],
+          ],
           'actions': [
             {
-              'action_name': 'dump_symbol_and_strip_4',
+              'action_name': 'dump_symbol_and_strip_5',
               'inputs': [
                 '<(DEPTH)/content/nw/tools/dump_app_syms',
                 '<(PRODUCT_DIR)/dump_syms',
@@ -373,6 +407,17 @@
         ['OS=="linux"', {
           'actions': [
             {
+              'conditions': [
+                ['target_arch=="arm"', {
+                  'variables': {
+                    'linux_strip_binary': 'arm-linux-gnueabihf-strip',
+                  },
+                }, {
+                  'variables': {
+                    'linux_strip_binary': 'strip',
+                  },
+                }],
+              ],
               'action_name': 'strip_nw_binaries',
               'inputs': [
                 '<(PRODUCT_DIR)/chromedriver',
@@ -382,7 +427,7 @@
               'outputs': [
                 '<(PRODUCT_DIR)/strip_binaries.stamp',
               ],
-              'action': ['strip',
+              'action': ['<(linux_strip_binary)',
                          '<@(_inputs)'],
               'message': 'Stripping release binaries',
             },
