@@ -160,12 +160,13 @@ def generate_target_nw(platform_name, arch, version):
                            'natives_blob.bin',
                            'lib/libnw.so',
                            'lib/libnode.so',
+                           'lib/libffmpeg.so',
                            ]
         if flavor == 'sdk':
             target['input'].append('nwjc')
             target['input'].append('payload')
             target['input'].append('chromedriver')
-        if flavor in ['nacl','sdk'] :
+        if flavor in ['nacl'] :
             target['input'] += ['nacl_helper', 'nacl_helper_bootstrap', 'pnacl']
             if arch == 'x64':
                 target['input'].append('nacl_irt_x86_64.nexe')
@@ -250,9 +251,10 @@ def generate_target_symbols(platform_name, arch, version):
         target['input'] = [
             'nw.breakpad.' + arch,
             'node.so.breakpad.' + arch,
+            'ffmpeg.so.breakpad.' + arch,
             'nw.so.breakpad.' + arch
         ]
-        if flavor in ['sdk', 'nacl']:
+        if flavor in ['nacl']:
             target['input'].append('nacl_helper.breakpad.' + arch)
 
         target['folder'] = True
