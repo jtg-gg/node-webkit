@@ -1,0 +1,71 @@
+diff --git a/common.gypi b/common.gypi
+index 3a1ce9a..82bf95c 100644
+--- common.gypi
++++ common.gypi
+@@ -70,10 +70,10 @@
+         'clang_dir': '<!(cd <(DEPTH) && pwd -P)/third_party/llvm-build/Release+Asserts',
+       }],
+       ['OS=="linux" and target_arch=="ia32" and <(building_nw)==1', {
+-        'sysroot': '<!(cd <(DEPTH) && pwd -P)/build/linux/debian_sid_i386-sysroot',
++        'sysroot': '<!(cd <(DEPTH) && pwd -P)/build/linux/debian_jessie_i386-sysroot',
+       }],
+       ['OS=="linux" and target_arch=="x64" and <(building_nw)==1', {
+-        'sysroot': '<!(cd <(DEPTH) && pwd -P)/build/linux/debian_sid_amd64-sysroot',
++        'sysroot': '<!(cd <(DEPTH) && pwd -P)/build/linux/debian_jessie_amd64-sysroot',
+       }],
+       ['OS== "mac"', {
+         'obj_dir': '<(PRODUCT_DIR)/obj.target',
+diff --git a/deps/nghttp2/nghttp2.gyp b/deps/nghttp2/nghttp2.gyp
+index ad9ea68..db3aba0 100644
+--- deps/nghttp2/nghttp2.gyp
++++ deps/nghttp2/nghttp2.gyp
+@@ -26,6 +26,9 @@
+             },
+           },
+         }],
++        ['target_arch=="arm"', {
++          'defines': ['HAVE_NETINET_IN_H'],
++        }],
+         ['0 == 1', {
+           'defines': [ 'DEBUGBUILD=1' ]
+         }]
+diff --git a/deps/openssl/openssl.gyp b/deps/openssl/openssl.gyp
+index cf136b7..9b3c580 100644
+--- deps/openssl/openssl.gyp
++++ deps/openssl/openssl.gyp
+@@ -6,6 +6,7 @@
+     'node_byteorder%': 'little',
+     'conditions': [
+       ['OS=="mac"', { 'openssl_no_asm%': 1 } ],
++      ['OS=="linux" and target_arch=="arm"', { 'openssl_no_asm%': 1 } ],
+     ],
+   },
+   'targets': [
+diff --git a/deps/openssl/openssl_common.gypi b/deps/openssl/openssl_common.gypi
+index ef6b107..c48c5a1 100644
+--- deps/openssl/openssl_common.gypi
++++ deps/openssl/openssl_common.gypi
+@@ -59,8 +59,7 @@
+     }, {
+       # linux and others
+       'cflags': ['-Wno-missing-field-initializers',
+-                 ## TODO: check gcc_version>=4.3
+-                 '-Wno-old-style-declaration'],
++                ],
+       'defines': [
+         'OPENSSLDIR="/etc/ssl"',
+         'ENGINESDIR="/dev/null"',
+diff --git a/deps/uv/uv.gyp b/deps/uv/uv.gyp
+index 0abc9a9..f456b12 100644
+--- deps/uv/uv.gyp
++++ deps/uv/uv.gyp
+@@ -218,6 +218,9 @@
+             '-Wno-varargs',
+           ],
+         }],
++        ['OS=="linux" and target_arch=="arm"', {
++          'cflags': ['--std=gnu99']
++        }],
+         [ 'OS in "mac ios"', {
+           'sources': [
+             'src/unix/darwin.c',
