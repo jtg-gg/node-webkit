@@ -1,0 +1,16 @@
+diff --git a/src/v8.gyp b/src/v8.gyp
+index cd57aa1..9128e7d 100644
+--- src/v8.gyp
++++ src/v8.gyp
+@@ -2244,11 +2244,6 @@
+             '<(icu_gyp_path):icuuc',
+           ]
+         }],
+-        ['want_separate_host_toolset==1', {
+-          'toolsets': ['host'],
+-        }, {
+-          'toolsets': ['target'],
+-        }],
+       ],
+     },
+     {
