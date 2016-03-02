@@ -1,0 +1,16 @@
+diff --git a/deps/openssl/asm/arm-void-gas/modes/ghash-armv4.S b/deps/openssl/asm/arm-void-gas/modes/ghash-armv4.S
+index 6f699db..b3cda37 100644
+--- deps/openssl/asm/arm-void-gas/modes/ghash-armv4.S
++++ deps/openssl/asm/arm-void-gas/modes/ghash-armv4.S
+@@ -4,8 +4,8 @@
+ .code	32
+ 
+ #ifdef __clang__
+-#define ldrplb	ldrbpl
+-#define ldrneb	ldrbne
++//#define ldrplb	ldrbpl
++//#define ldrneb	ldrbne
+ #endif
+ 
+ .type	rem_4bit,%object
+
