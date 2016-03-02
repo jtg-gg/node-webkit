@@ -1,0 +1,14 @@
+diff --git a/deps/nghttp2/nghttp2.gyp b/deps/nghttp2/nghttp2.gyp
+index 06c6023..d3caefd 100644
+--- deps/nghttp2/nghttp2.gyp
++++ deps/nghttp2/nghttp2.gyp
+@@ -23,6 +23,9 @@
+             },
+           },
+         }],
++        ['target_arch=="arm"', {
++          'defines': ['HAVE_NETINET_IN_H'],
++        }],
+         ['0 == 1', {
+           'defines': [ 'DEBUGBUILD=1' ]
+         }]
