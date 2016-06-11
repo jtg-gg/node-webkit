@@ -1,0 +1,9 @@
+{
+  "name": "mediarecorder",
+  "main": "index.html",
+  "chromium-args" : "--enable-tab-for-desktop-share --enable-audio-support-for-desktop-share",
+  "window": {
+    "width": 1300,
+    "height": 840
+  }
+}
