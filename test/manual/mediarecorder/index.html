@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <title>media recorder test</title>
+</head>
+<body>
+  <select id="format">
+    <option value="1" selected="selected">mp4/m4a</option>
+    <option value="2">webm/ogg</option>
+    <option value="3">webm VP8 mediarecorder</option>
+    <option value="4">webm VP9 mediarecorder</option>
+    <option value="5">webm H264 mediarecorder</option>
+  </select>
+  <br>
+  videoParams: <input type="text" size=100 id="videoParams" value="preset=ultrafast;//tune=zerolatency;//threads=1;video_size=1280x720"><br>
+  audioParams: <input type="text" size=100 id="audioParams" value="ar=16000;//ab=0"><br>
+  muxerParams: <input type="text" size=100 id="muxerParams" value="frag_duration=1000000;cluster_time_limit=1000;page_duration=1000000"><br>
+  <ol>
+    <li><button onclick="usermedia(false, true)">mic </button></li>
+    <li><button onclick="usermedia({mandatory:{}, optional:[{minWidth: 1280},{minHeight: 720}]}, true)">webcam + mic </button></li>
+    <li><button onclick="usermedia({mandatory:{}, optional:[{minWidth: 1280},{minHeight: 720}]}, false)">webcam only </button></li>
+    <li><button onclick="screen_cap(true)">screen capture + mic</button></li>
+    <li><button onclick="screen_cap(false, true)">tab capture + system</button></li>
+    <li><button onclick="screen_cap(false)">screen capture + system</button></li>
+  </ol>
+  <h4> check for audio/video quality and sync</h4>
+  <p id="output"></p>
+  <video autoplay controls></video><br>
+  <a id="videolink" download>Download Video</a>
+  <script>
+    var streamRecord = null;
+    var recordedBlobs;
+    var curStream = null;
+    var windowId; // for tab recording
+
+    function recordBlob(blob) {
+      console.log(blob);
+      recordedBlobs.push(blob.data);
+    }
+  
+    function log(output){
+      document.getElementById("output").innerHTML += output +"<br>";
+    }
+
+    function debugEvent(ev) {
+      log("streamRecord Event " + ev.type +" "+ this.mimeType)
+    }
+
+    function addStreamRecordEvent(streamRecord_) {
+      streamRecord_.ondataavailable = recordBlob;
+      streamRecord_.onpause  = debugEvent;
+      streamRecord_.onresume = debugEvent;
+      streamRecord_.onstart  = debugEvent;
+    }
+  
+    function displayVideo(mimeType) {
+      var blob = new Blob(recordedBlobs);
+      var video = document.querySelector('video');
+      video.muted = false;
+      video.src = window.URL.createObjectURL(blob);
+      var videolink = document.getElementById("videolink");
+      videolink.href = video.src;
+      videolink.download = mimeType;
+    }
+
+  function usermedia(video_cond, audio_cond, force_mic) {
+    
+    function successVid(stream) {
+      if (force_mic) {
+        navigator.webkitGetUserMedia({audio: true, video: false},
+          function(audio_stream) {
+            if(stream.getAudioTracks().length <= 0) {
+              stream.addTrack(audio_stream.getTracks()[0]);
+            } else {
+              log("force mic, but the stream already has audio track ??");
+            }
+            force_mic = false;
+            successVid(stream);
+          }, function(){log("webkitGetUserMedia (audio) fail");});
+        return;
+      }
+      curStream = stream;
+      var video = document.querySelector('video');
+      video.muted = true;
+	  if(stream.getAudioTracks().length > 0) {
+	    video.muted = stream.getAudioTracks()[0].label != "Tab audio";
+	  }
+      video.src = window.URL.createObjectURL(stream);
+      if(typeof nw != "undefined" && nw.MediaRecorder && document.getElementById("format").selectedIndex < 2) {
+        const isMP4 = document.getElementById("format").selectedIndex == 0;
+        streamRecord = new nw.MediaRecorder(stream, isMP4 ? 'video/mp4' : (video_cond ? 'video/webm' : 'application/ogg'));
+      } else {
+        var mimeString = 'video/webm';
+        switch(document.getElementById("format").selectedIndex) {
+          case 2:
+            mimeString += ';codecs=vp8';
+            break;
+          case 3:
+            mimeString += ';codecs=vp9';
+            break;
+          case 4:
+            mimeString += ';codecs=h264';
+            break;
+        }
+        streamRecord = new MediaRecorder(stream, {mimeType: mimeString});
+      }  
+        addStreamRecordEvent(streamRecord);
+        recordedBlobs = [];
+        streamRecord.start(1000, {forceSync:1, videoParams:document.getElementById('videoParams').value, audioParams:document.getElementById('audioParams').value, muxerParams:document.getElementById('muxerParams').value});
+    }
+    
+    if (streamRecord == null)
+      navigator.webkitGetUserMedia({audio: audio_cond, video: video_cond}, successVid, function(){log("webkitGetUserMedia fail");});
+    else {
+      streamRecord.onstop = function (ev) {
+        log("streamRecord Event " + ev.type +" "+ this.mimeType +"<br>");
+        displayVideo(this.mimeType);
+      };
+      streamRecord.stop();
+      streamRecord = null;
+      curStream.getTracks().forEach(function(element){element.stop();});
+      curStream = null;
+    }
+    
+  }
+  
+  function screen_cap(mic, tab) {
+    if (streamRecord != null) {
+      usermedia(null, null); // stop video
+      if(tab) chrome.tabs.getAllInWindow(windowId, function(tabs){tabs.forEach(function(tab){chrome.tabs.remove(tab.id)});})
+      return;
+    }
+    if(tab) { // and osx
+      chrome.windows.create({url:"file://"+nw.__dirname+"/tab.html?w=640&h=450&target=http://www.quirksmode.org/html5/videos/big_buck_bunny.mp4"}, function(window){windowId = window.id});
+    }
+
+    chrome.desktopCapture.chooseDesktopMedia(tab ? ["tab", "audio"] : ["screen","window","audio","tab"],
+      function(streamId) {
+        log("streamID:"+streamId);
+        var video_cons = {mandatory: {chromeMediaSource: 'desktop', chromeMediaSourceId: streamId, maxWidth: 1920, maxHeight: 1080, minFrameRate: 30}, optional:[{windowToFront: false}] };
+        // if force mic, put audio to false, can't combine mic and screen capture in 1 usermedia call
+        var audio_cons = mic ? false : {mandatory: {chromeMediaSource: 'system', chromeMediaSourceId: streamId}, optional:[]};
+        usermedia(video_cons, audio_cons, mic);
+      });
+  }
+  </script>
+</body>
+</html>
