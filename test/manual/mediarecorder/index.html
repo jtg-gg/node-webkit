@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <title>media recorder test</title>
+</head>
+<body>
+  <select id="format">
+    <option value="1" selected="selected">mp4/m4a</option>
+    <option value="2">webm/ogg</option>
+    <option value="3">webm VP8 official mediarecorder</option>
+    <option value="4">webm VP9 official mediarecorder</option>
+    <option value="5">webm H264 official mediarecorder</option>
+    <option value="6">flv H264 </option>
+  </select>
+  <input type="checkbox" id="windowToFront">windowToFront<br>
+  <br>
+  videoParams: <input type="text" size=100 id="videoParams" value="preset=ultrafast;//tune=zerolatency;//threads=1;video_size=640x360;b=500000"><br>
+  audioParams: <input type="text" size=100 id="audioParams" value="ar=44100;ab=96000"><br>
+  muxerParams: <input type="text" size=100 id="muxerParams" value="frag_duration=1000000;cluster_time_limit=1000;page_duration=1000000"><br>
+  outputs    : <input type="text" size=100 id="outputs" value="rtmp://localhost:1935/live/myStream1;video.mp4"><br>
+  <ol>
+    <li><button onclick="usermedia(false, true)">mic </button></li>
+    <li><button onclick="usermedia({mandatory:{}, optional:[{minWidth: 1280},{minHeight: 720}]}, true)">webcam + mic </button></li>
+    <li><button onclick="usermedia({mandatory:{}, optional:[{minWidth: 1280},{minHeight: 720}]}, false)">webcam only </button></li>
+    <li><button onclick="screen_cap(true)">screen capture + mic</button></li>
+    <li><button onclick="screen_cap(false, true)">tab capture + system</button></li>
+    <li><button onclick="screen_cap(false)">screen capture + system</button></li>
+    <li><button onclick="usermedia('canvas', true, true)">canvas + mic </button></li>
+    <li><button onclick="streamRecord.reopen('video.mp4','video2.mp4')">Reopen api</button></li>
+    <li><button onclick="runRTMP()">HTML5 RTMP</button></li>
+    <li><button onclick="RtmpReplaceTest()">RTMP replace test</button>check for error id -1347767890</li>
+  </ol>
+  <canvas id="myCanvas" width="640" height="360" style="border:1px solid #FF0000;">
+  </canvas>
+  <h4> check for audio/video quality and sync</h4>
+  <p id="output"></p>
+  <video width="640" autoplay controls></video><br>
+  <a id="videolink" download>Download Video</a><br>
+  <video width="640" id="video2" autoplay controls></video>
+  <script>
+    var streamRecord = null;
+    var streamRecord2 = null;
+    var recordedBlobs;
+    var curStream = null;
+    var windowId; // for tab recording
+
+    function recordBlob(blob) {
+      console.log(blob);
+      recordedBlobs.push(blob.data);
+    }
+  
+    function log(output){
+      document.getElementById("output").innerHTML += output +"<br>";
+    }
+
+    function debugEvent(ev) {
+      var id = (this == streamRecord) ? "1":"2";
+      log("streamRecord" + id +" Event " + ev.type +" "+ this.mimeType)
+    }
+
+    function errorEvent(ev, msg) {
+      var id = (this == streamRecord) ? "1":"2";
+      //if(msg[1] < 0)
+      log("streamRecord" + id + " Error " + JSON.stringify(msg) +" "+ this.mimeType)
+      if(this == streamRecord && msg[1]==-1347767890) {
+        log("streamRecord" + id + "Reopen:" + msg[2]);
+        this.reopen(msg[2],msg[2]);
+      }
+    }
+
+    function addStreamRecordEvent(streamRecord_) {
+      streamRecord_.ondataavailable = recordBlob;
+      streamRecord_.onpause  = debugEvent;
+      streamRecord_.onresume = debugEvent;
+      streamRecord_.onstart  = debugEvent;
+      streamRecord_.onerror  = errorEvent;
+    }
+  
+    function displayVideo(mimeType) {
+      var blob = new Blob(recordedBlobs);
+      var video = document.querySelector('video');
+      video.muted = false;
+      if (mimeType != "video/x-flv") {
+        video.src = window.URL.createObjectURL(blob);
+        video.srcObject = null;
+      }
+      var videolink = document.getElementById("videolink");
+      videolink.href = window.URL.createObjectURL(blob);
+      videolink.download = mimeType;
+    }
+  
+    function getRandomColor() {
+      var letters = '0123456789ABCDEF';
+      var color = '#';
+      for (var i = 0; i < 6; i++) {
+        color += letters[Math.floor(Math.random() * 16)];
+      }
+      return color;
+    }
+  
+    function checkTime(i) {
+      if (i < 10) {i = "0" + i};
+      return i;
+    }
+    var drawCanvasDate = new Date();
+    var lastColor = getRandomColor();
+    var lastFps = 0;
+    var frameCounter = 0;
+
+    function drawCanvas() {
+      setTimeout(function() {
+        var c = document.getElementById("myCanvas");
+        var ctx = c.getContext("2d");
+        ctx.fillStyle = lastColor;
+        ctx.fillRect(0, 0, c.width, c.height);
+        ctx.fillStyle = "black";
+        ctx.font = "20px Arial";
+        frameCounter++;
+        ctx.fillText(lastFps, 4, 40);
+        var today = new Date();
+        var h = today.getHours();
+        var m = today.getMinutes();
+        var s = today.getSeconds();
+        m = checkTime(m);
+        s = checkTime(s);
+        ctx.font = "160px Arial";
+        var text = h + ':' + m + ':' + s;
+        ctx.fillText(text, 4, 320);
+        drawCanvasDate = new Date();
+        drawCanvas();
+      }, 1000.0/30.0);
+    }
+  
+    function changeColor() {
+      setTimeout(function(){lastColor = getRandomColor(); changeColor()}, 500);
+    }
+    function updateFPS() {
+      setTimeout(function(){lastFps = frameCounter; frameCounter=0; updateFPS()}, 1000);
+    }
+
+    drawCanvas();
+    changeColor();
+    updateFPS();
+  function usermedia(video_cond, audio_cond, force_mic) {
+    
+    function successVid(stream) {
+      if (force_mic) {
+        navigator.webkitGetUserMedia({audio: true, video: false},
+          function(audio_stream) {
+            if(stream.getAudioTracks().length <= 0) {
+              stream.addTrack(audio_stream.getTracks()[0]);
+            } else {
+              log("force mic, but the stream already has audio track ??");
+            }
+            force_mic = false;
+            successVid(stream);
+          }, function(err){log("webkitGetUserMedia (audio) fail " + err.name);});
+        return;
+      }
+      curStream = stream;
+      var video = document.querySelector('video');
+      video.muted = true;
+	  if(stream.getAudioTracks().length > 0) {
+	    video.muted = stream.getAudioTracks()[0].label != "Tab audio";
+	  }
+      video.src = null;
+      video.srcObject = stream;
+      const formatIndex = document.getElementById("format").selectedIndex;
+      if(typeof nw != "undefined" && nw.MediaRecorder && formatIndex < 2) {
+        const isMP4 = formatIndex == 0;
+        streamRecord = new nw.MediaRecorder(stream, isMP4 ? 'video/mp4' : (video_cond ? 'video/webm' : 'application/ogg'));
+      } else if (formatIndex < 5) {
+        var mimeString = 'video/webm';
+        switch(formatIndex) {
+          case 2:
+            mimeString += ';codecs=vp8';
+            break;
+          case 3:
+            mimeString += ';codecs=vp9';
+            break;
+          case 4:
+            mimeString += ';codecs=h264';
+            break;
+        }
+        streamRecord = new MediaRecorder(stream, {mimeType: mimeString});
+      } else {
+        streamRecord = new nw.MediaRecorder(stream, "video/x-flv");
+      }
+        addStreamRecordEvent(streamRecord);
+        recordedBlobs = [];
+        streamRecord.start(1000, {forceSync:1,
+                                  videoParams:document.getElementById('videoParams').value,
+                                  audioParams:document.getElementById('audioParams').value,
+                                  muxerParams:document.getElementById('muxerParams').value,
+                                  output: formatIndex==5 ? document.getElementById('outputs').value : "",
+                                  loglevel:56
+                           });
+    }
+    
+    if (streamRecord == null)
+      if (video_cond == 'canvas') {
+        var canvas = document.getElementById("myCanvas");
+        successVid(canvas.captureStream(30));
+      } else
+        navigator.webkitGetUserMedia({audio: audio_cond, video: video_cond}, successVid, function(err){log("webkitGetUserMedia fail " + err.name);});
+    else {
+      streamRecord.onstop = function (ev, args) {
+        log("streamRecord1 Event " + ev.type + " " + this.mimeType + " " + JSON.stringify(args) + "<br>");
+        displayVideo(this.mimeType);
+      };
+      streamRecord.stop();
+      streamRecord = null;
+      curStream.getTracks().forEach(function(element){element.stop();});
+      curStream = null;
+    }
+    
+  }
+  
+  function screen_cap(mic, tab) {
+    if (streamRecord != null) {
+      usermedia(null, null); // stop video
+      if(tab) chrome.tabs.getAllInWindow(windowId, function(tabs){tabs.forEach(function(tab){chrome.tabs.remove(tab.id)});})
+      return;
+    }
+    if(tab) { // and osx
+      chrome.windows.create({url:"file://"+nw.__dirname+"/tab.html?w=640&h=450&target=http://www.quirksmode.org/html5/videos/big_buck_bunny.mp4"}, function(window){windowId = window.id});
+    }
+
+    chrome.desktopCapture.chooseDesktopMedia(tab ? ["tab", "audio"] : ["screen","window","audio","tab"],
+      function(streamId) {
+        log("streamID:"+streamId);
+        var video_cons = {mandatory: {chromeMediaSource: 'desktop', chromeMediaSourceId: streamId, maxWidth: 1920, maxHeight: 1080, minFrameRate: 30, windowToFront: document.getElementById("windowToFront").checked}};
+        // if force mic, put audio to false, can't combine mic and screen capture in 1 usermedia call
+        var audio_cons = mic ? false : {mandatory: {chromeMediaSource: 'system', chromeMediaSourceId: streamId}, optional:[]};
+        usermedia(video_cons, audio_cons, mic);
+      });
+  }
+
+  var video2 = document.getElementById('video2');
+  video2.addEventListener('error', function(event) {
+    log(event.path[0].error.message);
+  }, true);
+  video2.addEventListener('ended', function(event) {
+    log("RTMP video ended");
+    video2.src = document.getElementById('outputs').value.split(";")[0];
+  }, false);
+
+  function runRTMP() {
+    const vidURL = document.getElementById('outputs').value.split(";")[0];
+    if(video2.src == vidURL)
+      video2.src = null;
+    else
+      video2.src = vidURL;
+  }
+  
+  function RtmpReplaceTest() {
+    var video = document.querySelector('video');
+    if(streamRecord2==null) {
+      streamRecord2 = new nw.MediaRecorder(video.srcObject, "video/x-flv");
+      addStreamRecordEvent(streamRecord2);
+      streamRecord2.onstop = function (ev, args) {
+        log("streamRecord2 Event " + ev.type + " " + this.mimeType + " " + JSON.stringify(args) + "<br>");
+      };
+      streamRecord2.start(1000, {forceSync:1,
+                       videoParams:document.getElementById('videoParams').value,
+                       audioParams:document.getElementById('audioParams').value,
+                       muxerParams:document.getElementById('muxerParams').value,
+                       output:     document.getElementById('outputs').value,
+                       loglevel:0
+                       });
+    } else {
+      streamRecord2.stop();
+      streamRecord2 = null;
+    }
+  }
+  
+  const { spawn } = require('child_process');
+  const rtmp_server = spawn('node',['rtmp-server.js']);
+  rtmp_server.stdout.on('data', (data) => {
+    console.log(`stdout: ${data}`);
+  });
+  rtmp_server.stderr.on('data', (data) => {
+    console.log(`stderr: ${data}`);
+  });
+  rtmp_server.on('close', (code) => {
+    console.log(`child process exited with code ${code}`);
+  });
+  process.on('exit',    function(){rtmp_server.kill('SIGINT');});
+  process.on('SIGTERM', function(){rtmp_server.kill('SIGINT');});
+  process.on('SIGINT',  function(){rtmp_server.kill('SIGINT');});
+  </script>
+</body>
+</html>
