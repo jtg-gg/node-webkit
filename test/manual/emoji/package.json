@@ -1,0 +1,8 @@
+{
+  "name": "emoji-test",
+  "main": "index.html",
+  "window": {
+    "width": 1300,
+    "height": 840
+  }
+}
