@@ -21,7 +21,11 @@
 #define inline __inline
 #define strtoll _strtoi64
 #define _ISOC99_SOURCE
+
+#ifndef _LARGEFILE_SOURCE
 #define _LARGEFILE_SOURCE
+#endif
+
 #define FF_API_PIX_FMT_DESC 0
 #define FF_API_OLD_DECODE_AUDIO 0
 #define FF_API_DESTRUCT_PACKET 0
