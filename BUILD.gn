@@ -234,7 +234,9 @@ action("commit_id") {
     public_configs = [ ":commit_id_config" ]
 }
 
+if(!is_mac){
 copy("copy_node") {
+  if (is_linux) {
   if (is_debug) {
      node_dir = "$root_out_dir/../Debug/lib/"
   } else {
@@ -242,7 +244,18 @@ copy("copy_node") {
   }
   sources = [ "$node_dir" + "/libnode.so" ]
   outputs = [ "$root_shlib_dir/libnode.so" ]
+  }
+  if (is_win) {
+    if (is_debug) {
+      node_dir = "$root_out_dir/../Debug/"
+    } else {
+       node_dir = "$root_out_dir/../Release/"
+    }
+    sources = [ "$node_dir" + "/node.dll" ]
+    outputs = [ "$root_shlib_dir/node.dll" ]
+  }
 }
+} #!is_mac
 
 if (is_win && !is_component_build) {
   action("dump") {
@@ -252,7 +265,7 @@ if (is_win && !is_component_build) {
                "$root_build_dir/node.dll",
              ]
 
-    deps = [ "//breakpad:dump_syms",
+    deps = [ "//chrome:reorder_imports",
              "//chrome:chrome_initial",
              "//chrome:main_dll",
              ":copy_node",

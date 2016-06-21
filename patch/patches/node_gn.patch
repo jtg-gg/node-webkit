@@ -1,0 +1,22 @@
+diff --git a/node.gyp b/node.gyp
+index 20eebcb..00e1cb0 100644
+--- node.gyp
++++ node.gyp
+@@ -463,7 +463,7 @@
+             'NODE_PLATFORM="win32"',
+             '_UNICODE=1',
+           ],
+-          'libraries': [ '-lpsapi.lib', '<(PRODUCT_DIR)/../nw/obj/v8/v8_libbase.lib', '<(PRODUCT_DIR)/../nw/obj/v8/v8_libplatform.lib', '<(PRODUCT_DIR)/../nw/nw.dll.lib', '<(PRODUCT_DIR)/../nw/v8.dll.lib' ]
++          'libraries': [ '-lpsapi.lib', '<(PRODUCT_DIR)/../nw/obj/v8/v8_libbase.lib', '<(PRODUCT_DIR)/../nw/obj/v8/v8_libplatform.lib', '<(PRODUCT_DIR)/../nw/nw.dll.lib' ]
+         }, { # POSIX
+           'defines': [ '__POSIX__' ],
+         }],
+@@ -525,7 +525,7 @@
+         [ 'OS=="mac"', {
+           'xcode_settings': {
+             'OTHER_LDFLAGS': [
+-              '-L<(PRODUCT_DIR)/../nw/', '-lv8',
++              '-L<(PRODUCT_DIR)/../nw/',
+               '<(PRODUCT_DIR)/../nw/nwjs\ Framework.framework/nwjs\ Framework',
+                       '-Wl,-force_load <(V8_BASE)',
+                       '-Wl,-force_load <(V8_PLTFRM)',
