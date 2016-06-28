@@ -274,7 +274,11 @@ if (is_win && !is_component_build) {
 }
 
 if (is_linux && !is_component_build) {
-  linux_strip_binary = 1
+  if (target_cpu == "arm") {
+    linux_strip_binary = "arm-linux-gnueabihf-strip"
+  } else {
+    linux_strip_binary = "strip"
+  }
   action_foreach("dump") {
     script = "//build/linux/dump_app_syms.py"
     sources = [ "$root_build_dir/nw",
