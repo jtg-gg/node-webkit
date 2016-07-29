@@ -45,6 +45,7 @@ PolicyCertVerifier::PolicyCertVerifier(
     const base::Closure& anchor_used_callback)
     : anchor_used_callback_(anchor_used_callback) {
   //DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
+  InitializeOnIOThread(net::CertVerifyProc::CreateDefault());
 }
 
 PolicyCertVerifier::~PolicyCertVerifier() {
