@@ -121,7 +121,7 @@ for SRC_NAME in "${SRC_NAMES[@]}"; do
     # with CFI produced by clang.
     # http://code.google.com/p/google-breakpad/issues/detail?id=443
     if [ "${DWARF_PATH}" -nt "${BPAD_SYM_PATH}" ] ; then
-      "${BREAKPAD_DUMP_SYMS}" -a "${ARCH}" -c "${DWARF_PATH}" > \
+      "${BREAKPAD_DUMP_SYMS}" -a "${ARCH}" -c "${DWARF_PATH}" 2>/dev/null > \
           "${BPAD_SYM_PATH}"
     fi
 
