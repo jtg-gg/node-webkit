@@ -1,0 +1,13 @@
+diff --git a/src/common/mac/macho_reader.cc b/src/common/mac/macho_reader.cc
+index 52f3c411..d23987c8 100644
+--- src/common/mac/macho_reader.cc
++++ src/common/mac/macho_reader.cc
+@@ -501,7 +501,7 @@ bool Reader::WalkSegmentSections(const Segment &segment,
+           size > size_t(segment.contents.end - buffer_.start - offset)) {
+         reporter_->MisplacedSectionData(section.section_name,
+                                         section.segment_name);
+-        return false;
++        //return false;
+       }
+       section.contents.start = buffer_.start + offset;
+       section.contents.end = section.contents.start + size;
