@@ -1,0 +1,16 @@
+diff --git a/src/untrusted/irt/irt_entry.c b/src/untrusted/irt/irt_entry.c
+index 5c7e7e3..2df5380 100644
+--- src/untrusted/irt/irt_entry.c
++++ src/untrusted/irt/irt_entry.c
+@@ -111,11 +111,6 @@ void nacl_irt_enter_user_code(uint32_t *info,
+   _exit(0);
+ }
+ 
+-/* This is the true entry point for untrusted code. */
+-void _start(uint32_t *info) {
+-  nacl_irt_start(info);
+-}
+-
+ /*
+  * This is never actually called, but there is an artificial undefined
+  * reference to it.
