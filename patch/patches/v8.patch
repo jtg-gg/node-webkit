@@ -14,4 +14,41 @@ index cdfd52c..acc145c 100644
        ],
      },
      {
-
+diff --git a/src/api.cc b/src/api.cc
+index 09c0108..ce858c0 100644
+--- src/api.cc
++++ src/api.cc
+@@ -4202,8 +4202,12 @@ Local<v8::Object> v8::Object::Clone() {
+ 
+ Local<v8::Context> v8::Object::CreationContext() {
+   auto self = Utils::OpenHandle(this);
+-  auto context = handle(self->GetCreationContext());
+-  return Utils::ToLocal(context);
++  auto *creationContext = self->GetCreationContext();
++  if (creationContext) {
++    auto context = handle(creationContext);
++    return Utils::ToLocal(context);
++  }
++  else return Local<v8::Context>();
+ }
+ 
+ 
+diff --git a/src/objects.cc b/src/objects.cc
+index f577d5e..3642afc 100644
+--- src/objects.cc
++++ src/objects.cc
+@@ -2527,11 +2527,12 @@ Context* JSReceiver::GetCreationContext() {
+   JSFunction* function;
+   if (constructor->IsJSFunction()) {
+     function = JSFunction::cast(constructor);
+-  } else {
++  } else if(receiver->IsJSFunction()) {
+     // Functions have null as a constructor,
+     // but any JSFunction knows its context immediately.
+-    CHECK(receiver->IsJSFunction());
+     function = JSFunction::cast(receiver);
++  } else {
++    return nullptr;
+   }
+ 
+   return function->context()->native_context();
