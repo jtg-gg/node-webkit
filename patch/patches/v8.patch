@@ -14,3 +14,61 @@ index 24b1f4a..cf65555 100644
        ],
      },
      {
+diff --git a/src/api.cc b/src/api.cc
+index 1fa0213..8a8721d 100644
+--- src/api.cc
++++ src/api.cc
+@@ -4835,8 +4835,12 @@ Local<v8::Object> v8::Object::Clone() {
+ 
+ Local<v8::Context> v8::Object::CreationContext() {
+   auto self = Utils::OpenHandle(this);
+-  auto context = handle(self->GetCreationContext());
+-  return Utils::ToLocal(context);
++  auto *creationContext = self->GetCreationContext();
++  if (creationContext) {
++    auto context = handle(creationContext);
++    return Utils::ToLocal(context);
++  }
++  else return Local<v8::Context>();
+ }
+ 
+ 
+diff --git a/src/inspector/v8-heap-profiler-agent-impl.cc b/src/inspector/v8-heap-profiler-agent-impl.cc
+index 0af792f..688d820 100644
+--- src/inspector/v8-heap-profiler-agent-impl.cc
++++ src/inspector/v8-heap-profiler-agent-impl.cc
+@@ -255,9 +255,11 @@ Response V8HeapProfilerAgentImpl::getObjectByHeapObjectId(
+   if (!m_session->inspector()->client()->isInspectableHeapObject(heapObject))
+     return Response::Error("Object is not available");
+ 
+-  *result = m_session->wrapObject(heapObject->CreationContext(), heapObject,
+-                                  objectGroup.fromMaybe(""), false);
+-  if (!result) return Response::Error("Object is not available");
++  auto creationContext = heapObject->CreationContext();
++  if(!creationContext.IsEmpty())
++    *result = m_session->wrapObject(creationContext, heapObject,
++                                         objectGroup.fromMaybe(""), false);
++  if (!result || !*result) return Response::Error("Object is not available");
+   return Response::OK();
+ }
+ 
+ void V8HeapProfilerAgentImpl::addInspectedHeapObject(
+diff --git a/src/objects.cc b/src/objects.cc
+index 9a6f4cb..1e7b20c 100644
+--- src/objects.cc
++++ src/objects.cc
+@@ -3074,11 +3074,12 @@ Context* JSReceiver::GetCreationContext() {
+   JSFunction* function;
+   if (constructor->IsJSFunction()) {
+     function = JSFunction::cast(constructor);
+-  } else {
++  } else if(receiver->IsJSFunction()) {
+     // Functions have null as a constructor,
+     // but any JSFunction knows its context immediately.
+-    CHECK(receiver->IsJSFunction());
+     function = JSFunction::cast(receiver);
++  } else {
++    return nullptr;
+   }
+ 
+   return function->context()->native_context();
