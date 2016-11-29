@@ -14,3 +14,60 @@ index 81843bb..e3d1c51 100644
        ],
      },
      {
+diff --git a/src/api.cc b/src/api.cc
+index 2931789..83f25d9 100644
+--- src/api.cc
++++ src/api.cc
+@@ -4768,8 +4768,12 @@ Local<v8::Object> v8::Object::Clone() {
+ 
+ Local<v8::Context> v8::Object::CreationContext() {
+   auto self = Utils::OpenHandle(this);
+-  auto context = handle(self->GetCreationContext());
+-  return Utils::ToLocal(context);
++  auto *creationContext = self->GetCreationContext();
++  if (creationContext) {
++    auto context = handle(creationContext);
++    return Utils::ToLocal(context);
++  }
++  else return Local<v8::Context>();
+ }
+ 
+ 
+diff --git a/src/inspector/v8-heap-profiler-agent-impl.cc b/src/inspector/v8-heap-profiler-agent-impl.cc
+index 166781d..702f906 100644
+--- src/inspector/v8-heap-profiler-agent-impl.cc
++++ src/inspector/v8-heap-profiler-agent-impl.cc
+@@ -266,9 +266,11 @@ void V8HeapProfilerAgentImpl::getObjectByHeapObjectId(
+     return;
+   }
+ 
+-  *result = m_session->wrapObject(heapObject->CreationContext(), heapObject,
+-                                  objectGroup.fromMaybe(""), false);
+-  if (!result) *error = "Object is not available";
++  auto creationContext = heapObject->CreationContext();
++  if(!creationContext.IsEmpty())
++    *result = m_session->wrapObject(creationContext, heapObject,
++                                         objectGroup.fromMaybe(""), false);
++  if (!result || !*result) *error = "Object is not available";
+ }
+ 
+ void V8HeapProfilerAgentImpl::addInspectedHeapObject(
+diff --git a/src/objects.cc b/src/objects.cc
+index e817e77..25ba669 100644
+--- src/objects.cc
++++ src/objects.cc
+@@ -3038,11 +3038,12 @@ Context* JSReceiver::GetCreationContext() {
+   JSFunction* function;
+   if (constructor->IsJSFunction()) {
+     function = JSFunction::cast(constructor);
+-  } else {
++  } else if(receiver->IsJSFunction()) {
+     // Functions have null as a constructor,
+     // but any JSFunction knows its context immediately.
+-    CHECK(receiver->IsJSFunction());
+     function = JSFunction::cast(receiver);
++  } else {
++    return nullptr;
+   }
+ 
+   return function->context()->native_context();
