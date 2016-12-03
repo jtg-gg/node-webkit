@@ -39,6 +39,14 @@
         },
       },
     },
+    'conditions': [
+      ['OS=="mac"', {
+        'mac_framework_dirs': [
+            '<(DEPTH)/../content/nw/external_binaries',
+        ],
+      }],
+    ],
+
   },
   'targets': [
     {
@@ -208,6 +216,8 @@
         'src/api/api_messages.h',
         'src/api/app/app.cc',
         'src/api/app/app.h',
+        'src/api/auto_updater/api_auto_updater.cc',
+        'src/api/auto_updater/api_auto_updater.h',
         'src/api/bindings_common.cc',
         'src/api/bindings_common.h',
         'src/api/base/base.cc',
@@ -281,6 +291,9 @@
         'src/browser/autofill_popup_view_cocoa.mm',
         'src/browser/autofill_popup_view_bridge.h',
         'src/browser/autofill_popup_view_bridge.mm',
+        'src/browser/auto_updater.h',
+        'src/browser/auto_updater.cc',
+        'src/browser/auto_updater_mac.mm',
         '<(DEPTH)/chrome/browser/ui/autofill/autofill_popup_controller_impl.cc',
         '<(DEPTH)/chrome/browser/ui/autofill/autofill_popup_controller_impl.h',
         'src/browser/browser_view_layout.cc',
@@ -588,7 +601,14 @@
             'libraries': [
               '$(SDKROOT)/System/Library/Frameworks/AddressBook.framework',
               '$(SDKROOT)/System/Library/Frameworks/CoreLocation.framework',
+              'external_binaries/Squirrel.framework',
+              'external_binaries/ReactiveCocoa.framework',
+              'external_binaries/Mantle.framework',
             ],
+          },
+          'xcode_settings': {
+            # ReactiveCocoa which is used by Squirrel requires using __weak.
+            'CLANG_ENABLE_OBJC_WEAK': 'YES',
           },
         }],
         ['OS=="win"', {
@@ -1079,6 +1099,9 @@
               'files': [
                 '<(PRODUCT_DIR)/<(nw_product_name) Helper.app',
                 '<(PRODUCT_DIR)/crash_inspector',
+                'external_binaries/Squirrel.framework',
+                'external_binaries/ReactiveCocoa.framework',
+                'external_binaries/Mantle.framework',
               ],
             },
           ],
@@ -1274,7 +1297,12 @@
             'src/shell_content_main.cc',
             'src/shell_content_main.h',
           ],
-          'xcode_settings': { 'OTHER_LDFLAGS': [ '-Wl,-force_load,libnode.a' ], },
+          'xcode_settings': {
+            'OTHER_LDFLAGS': [ '-Wl,-force_load,libnode.a' ],
+            'LD_RUNPATH_SEARCH_PATHS': [
+              '@loader_path/..',
+            ],
+          },
           'link_settings': {
             'xcode_settings': {
               'OTHER_LDFLAGS': [
