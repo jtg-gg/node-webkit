@@ -709,8 +709,16 @@ nw_binding.registerCustomHook(function(bindingsAPI) {
         options.icon = params.icon;
       if (params.id)
         options.id = params.id;
+      if (params.title_bar_style)
+        options.title_bar_style = params.title_bar_style;
     }
     try_hidden(window).chrome.app.window.create(url, options, function(appWin) {
+      if (appWin &&
+        nw.require('os').platform() == "darwin" &&
+        options.title_bar_style &&
+        options.title_bar_style.startsWith("hidden-inset")) {
+        appWin.setWindowButtonsOffset();
+      }
       if (callback) {
         if (appWin)
           callback(try_nw(appWin.contentWindow).nw.Window.get());
