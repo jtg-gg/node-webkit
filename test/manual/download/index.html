@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html> 
+<head> 
+    <meta charset="utf-8"></meta>
+</head>
+<script>
+  // javascript here
+function download() {
+  chrome.downloads.download({
+  url:"http://dl.nwjs.io/v0.19.4/nwjs-sdk-v0.19.4-win-ia32.zip",
+  filename: "nwjs-sdk-v0.19.4-win-ia32.zip",
+  conflictAction: "uniquify",
+  saveAs: false
+  });
+}
+function newWindow() {
+  nw.Window.open('index.html');
+}
+</script>
+<body>
+  <button id="download" onclick="download()">download</button>
+  <button id="newWindow" onclick="newWindow()">newWindow</button>
+  <ol>
+    <li>download, close</li>
+    <li>download, newWindow, close</li>
+    <li>repeat but now close all from taskbar</li>
+  </ol>download in progress warning, should only appear on last window and the application name should be "NW.js download api test"
+</body>
+</html>
