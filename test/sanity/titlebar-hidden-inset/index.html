@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html> 
+<head> 
+    <meta charset="utf-8"></meta>
+</head>
+<script>
+// javascript here
+var winMetrics = [-1, -1, -1, -1];
+function getMetric() {
+  var window = nw.Window.get();
+  //document.getElementById("output").innerHTML += "<br> window Metric: " + window.x + ", " + window.y + ", " + window.width + ", " + window.height;
+  winMetrics = [window.x, window.y, window.width, window.height];
+}
+
+function writeSuccess(id) {
+  var result = document.createElement('p');
+  result.setAttribute('id', 'result' + id);
+  result.innerHTML = 'success '+ id;
+  document.body.appendChild(result);
+}
+  
+function writeFailure(e, id) {
+  var result = document.createElement('p');
+  result.setAttribute('id', 'result' + id);
+  result.innerHTML = 'failure ' + id + ' [' + e + ']';
+  document.body.appendChild(result);
+}
+
+function newWindow() {
+  nw.Window.open("file://"+nw.__dirname+"/index.html", {title_bar_style: "hidden-inset,25,25", "height": 1500}, function(newWin) {
+    newWin.on('close', function() {
+      writeSuccess(1);
+      this.close(true);
+    });
+  });
+}
+var closeCt = 0;
+nw.Window.get().on('close', function() {
+  closeCt++;
+  writeSuccess(2);
+  if(closeCt >= 2)
+    this.close(true);
+});
+</script>
+<body>
+  <button id="newWindow" onclick="newWindow()">newWindow</button>
+  <br> Manual test:
+  <ol>
+      <li>Enter/Exit full screen for both window see if the animation / button location is ok</li>
+      <li>Resize the window as small as possible</li>
+  </ol>
+</body>
+</html>
