@@ -682,8 +682,24 @@ apiBridge.registerCustomHook(function(bindingsAPI) {
         options.icon = params.icon;
       //if (params.id)
       //  options.tabId = params.id;
+      if (params.title_bar_style) {
+        options.title_bar_style = params.title_bar_style;
+        if (navigator.appVersion.indexOf("Mac")!=-1 &&
+            options.title_bar_style &&
+            options.title_bar_style.startsWith("hidden") &&
+            params.frame === false) {
+          options.frameless = false;
+          options.force_enable_drag_region = true;
+        }
+      }
     }
     try_hidden(window).chrome.windows.create(options, function(cWin) {
+      if (cWin &&
+        nw.require('os').platform() == "darwin" &&
+        options.title_bar_style &&
+        options.title_bar_style.startsWith("hidden-inset")) {
+        chrome.windows.setWindowButtonsOffset(cWin.id);
+      }
       if (callback) {
         if (cWin)
           callback(new NWWindow(cWin));
