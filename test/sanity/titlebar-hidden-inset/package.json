@@ -1,0 +1,8 @@
+{
+  "name": "nwjs-titlebar-test",
+  "appName": "NW.js titlebar test",
+  "main": "index.html",
+  "window": {
+    "titleBarStyle": "hidden-inset,50,50"
+  }
+}
