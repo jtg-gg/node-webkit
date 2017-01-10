@@ -1,0 +1,11 @@
+{
+  "name": "nwjs-titlebar-test",
+  "appName": "NW.js titlebar test",
+  "main": "index.html",
+  "window": {
+     "titleBarStyle": "hidden-inset,12,12",
+     "frame" : false,
+     "force_enable_drag_region": true,
+     "height": 1500
+  }
+}
