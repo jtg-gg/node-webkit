@@ -14,6 +14,6 @@ namespace nw.AutoUpdater {
   };
 
   interface Functions {
-    static DOMString NativeCallSync(DOMString method, DOMString param);
+    static DOMString[] NativeCallSync(DOMString method, DOMString param);
   };
 };
