@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <title>SQLite-json</title>
+</head>
+<body>
+  <script>
+
+function runTest(key, insertData) {
+try {
+  var db = openDatabase('json1db', '1.0', 'JSON1 DB', 2 * 1024 * 1024, key);
+  var msg;
+  
+  if(insertData)
+    db.transaction(function(tx){
+      tx.executeSql('CREATE TABLE IF NOT EXISTS user(name unique, phone)');
+      tx.executeSql('insert into user (name, phone) values("oz", json(\'{"cell":"+491765", "home":"+498973"}\'));');
+      tx.executeSql('insert into user (name, phone) values("array", json_array("704-123", "704123"));');
+      msg = 'Log message created and row inserted.<br>';
+      write(msg);
+    });
+  
+  db.transaction(function(tx){
+    tx.executeSql('SELECT json_extract(user.phone, \'$.cell\') FROM user', [], function(tx, results){
+      var len = results.rows.length, i;
+      msg = "Found rows: " + len + "<br>";
+      write(msg);
+    
+      for (i = 0; i < len; i++){
+        msg = "<b>" + JSON.stringify(results.rows.item(i)) + "</b><br>";
+        write(msg);
+      }
+    
+      if (len == 2 && results.rows.item(0)['json_extract(user.phone, \'$.cell\')']=='+491765' &&
+        results.rows.item(1)['json_extract(user.phone, \'$.cell\')']==null) {
+        writeSuccess(1);
+      }
+    });
+  });
+
+  db.transaction(function(tx){
+    tx.executeSql('SELECT DISTINCT user.name FROM user, json_each(user.phone) WHERE json_each.value LIKE \'704-%\';', [], function(tx, results){
+      var len = results.rows.length, i;
+      msg = "Found rows: " + len + "<br>";
+      write(msg);
+    
+      for (i = 0; i < len; i++){
+        msg = "<b>" + JSON.stringify(results.rows.item(i)) + "</b><br>";
+        write(msg);
+      }
+    
+      if (len == 1 && results.rows.item(0).name=='array') {
+        writeSuccess(2);
+      }
+    });
+  });
+
+  /*db.transaction(function(tx){
+    tx.executeSql('select json_group_array(name) from user;', [], function(tx, results){
+      var len = results.rows.length, i;
+      msg = "Found rows: " + len + "<br>";
+      write(msg);
+    
+      for (i = 0; i < len; i++){
+        msg = "<b>" + JSON.stringify(results.rows.item(i)) + "</b><br>";
+        write(msg);
+      }
+    
+      if (len == 1 && results.rows.item(0)['json_group_array(name)']=='["array","oz"]') {
+        writeSuccess(3);
+      }
+    });
+  });*/
+
+} catch(e) {
+  writeFailure(e, 0);
+}
+}
+
+  function write(msg) {
+    document.getElementById("output").innerHTML += msg;
+  }
+  
+  function writeSuccess(id) {
+    var result = document.createElement('p');
+    result.setAttribute('id', 'result' + id);
+    result.innerHTML = 'success ' + id;
+    document.body.appendChild(result);
+  }
+  
+  function writeFailure(e, id) {
+    var result = document.createElement('p');
+    result.setAttribute('id', 'result' + id);
+    result.innerHTML = 'failure ' + id + '[' + e + ']';
+    document.body.appendChild(result);
+  }
+  </script>
+  <button id="Create" onclick="runTest('', true)">Create and Read</button>
+  <button id="Read" onclick="runTest('')">Read</button>
+  <button id="Create-Encrypted" onclick="runTest('PRAGMA KEY=test123', true)">Create and Read Encrypted</button>
+  <button id="Read-Encrypted" onclick="runTest('PRAGMA KEY=test123')">Read Encrypted</button>
+  <p id="output" />
+</body>
+</html>
