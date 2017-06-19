@@ -23,7 +23,6 @@
 #include "content/nw/src/nw_base.h"
 #include "content/nw/src/common/shell_switches.h"
 
-#include "net/cert/x509_certificate.h"
 
 // ui
 #include "ui/base/resource/resource_bundle.h"
@@ -63,7 +62,6 @@ CONTENT_EXPORT SendEventToAppFn gSendEventToApp = nullptr;
 
 bool GetDirUserData(base::FilePath*);
 
-void SetTrustAnchors(net::CertificateList&);
 #endif
 // browser
 
