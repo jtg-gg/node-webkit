@@ -27,7 +27,7 @@ function writeFailure(e, id) {
 }
 
 function newWindow() {
-  nw.Window.open("file://"+nw.__dirname+"/index.html", {title_bar_style: "hidden-inset,25,25"}, function(newWin) {
+  nw.Window.open("file://"+nw.__dirname+"/index.html", {title_bar_style: "hidden-inset,25,25", "height": 1500}, function(newWin) {
     newWin.on('close', function() {
       writeSuccess(1);
       this.close(true);
@@ -44,5 +44,10 @@ nw.Window.get().on('close', function() {
 </script>
 <body>
   <button id="newWindow" onclick="newWindow()">newWindow</button>
+  <br> Manual test:
+  <ol>
+      <li>Enter/Exit full screen for both window see if the animation / button location is ok</li>
+      <li>Resize the window as small as possible</li>
+  </ol>
 </body>
 </html>

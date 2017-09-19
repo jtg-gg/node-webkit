@@ -28,7 +28,7 @@ try:
     assert("success" in result.get_attribute('innerHTML'))
 
     print "test 2"
-    pyautogui.moveTo(init_x + 50, init_y + 50)
+    pyautogui.moveTo(init_x + 12, init_y + 12)
     pyautogui.click();
     result = driver.find_element_by_id('result2')
     print result.get_attribute('innerHTML')

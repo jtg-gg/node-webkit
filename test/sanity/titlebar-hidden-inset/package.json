@@ -3,6 +3,7 @@
   "appName": "NW.js titlebar test",
   "main": "index.html",
   "window": {
-    "titleBarStyle": "hidden-inset,50,50"
+     "titleBarStyle": "hidden-inset,12,12",
+     "height": 1500
   }
 }
