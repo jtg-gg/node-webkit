@@ -299,6 +299,12 @@ if (is_win && !is_component_build) {
     inputs = [ "$root_build_dir/nw.exe",
                "$root_build_dir/nw.dll",
                "$root_build_dir/node.dll",
+               "$root_build_dir/ffmpeg.dll",
+               "$root_build_dir/libEGL.dll",
+               "$root_build_dir/libGLESv2.dll",
+               "$root_build_dir/swiftshader/libEGL.dll",
+               "$root_build_dir/swiftshader/libGLESv2.dll",
+               "$root_build_dir/nw_elf.dll",
              ]
 
     deps = [
@@ -308,21 +314,67 @@ if (is_win && !is_component_build) {
              ":payload",
              "//v8:nwjc",
              "//chrome/test/chromedriver:chromedriver",
-             "//third_party/ffmpeg:ffmpeg"
+             "//third_party/ffmpeg:ffmpeg",
+             "//third_party/angle:libEGL",
+             "//third_party/angle:libGLESv2",
+             "//third_party/swiftshader/src/OpenGL/libEGL:swiftshader_libEGL",
+             "//third_party/swiftshader/src/OpenGL/libGLESv2:swiftshader_libGLESv2",
+             "//chrome_elf:chrome_elf",
              ]
     outputs = [
-      "$root_build_dir/nw.sym.7z"
+      "$root_build_dir/nw.sym.zip"
     ]
     args = [
       rebase_path("$root_build_dir/nw.exe", root_build_dir),
       rebase_path("$root_build_dir/nw.dll", root_build_dir),
       rebase_path("$root_build_dir/node.dll", root_build_dir),
-      rebase_path("$root_build_dir/nw.sym.7z", root_build_dir),
+      rebase_path("$root_build_dir/ffmpeg.dll", root_build_dir),
+      rebase_path("$root_build_dir/libEGL.dll", root_build_dir),
+      rebase_path("$root_build_dir/libGLESv2.dll", root_build_dir),
+      rebase_path("$root_build_dir/swiftshader/libEGL.dll", root_build_dir),
+      rebase_path("$root_build_dir/swiftshader/libGLESv2.dll", root_build_dir),
+      rebase_path("$root_build_dir/nw_elf.dll", root_build_dir),
+      rebase_path("$root_build_dir/nw.sym.zip", root_build_dir),
     ]
   }
 }
 
 if (is_mac && !is_component_build) {
+  action("mac_generate_node_dsym") {
+    script = "tools/run_command.py"
+    sources = [ "$root_out_dir/../Release/libnode.dylib" ]
+    outputs = [ "$root_out_dir/../Release/libnode.dylib.dSYM" ]
+    args = [ "dsymutil",
+             "--out=" + rebase_path("$root_out_dir/../Release/libnode.dylib.dSYM", root_out_dir),
+             rebase_path("$root_out_dir/../Release/libnode.dylib", root_out_dir) ]
+  }
+
+  action_foreach("mac_dump_other_syms") {
+    script = "//build/redirect_stdout.py"
+
+    sources = [ "$root_out_dir/libffmpeg.dylib", 
+                "$root_out_dir/../Release/libnode.dylib" ]
+
+    outputs = [
+      "$root_out_dir/{{source_file_part}}.breakpad.sym",
+    ]
+
+    # Use an absolute path to dump_syms in case a user has it in their path.
+    args = rebase_path(outputs, root_out_dir) + [
+             rebase_path("$root_out_dir/dump_syms"),
+             "-a", "x86_64",
+             "-g",
+             rebase_path(
+                 "$root_out_dir/{{source}}.dSYM",
+                 root_out_dir),
+             "{{source}}",
+    ]
+    deps = [ "//third_party/breakpad:dump_syms", 
+             ":mac_generate_node_dsym", 
+             "//third_party/ffmpeg:ffmpeg",
+           ]
+  }
+
   group("dump") {
     deps = [ "//third_party/breakpad:dump_syms",
              "//chrome",
@@ -333,7 +385,7 @@ if (is_mac && !is_component_build) {
              "//third_party/ffmpeg:ffmpeg"
              ]
     if (enable_dsyms) {
-      deps += [ "//chrome:nw_sym_archive" ]
+      deps += [ ":mac_dump_other_syms", "//chrome:chrome_dump_syms" ]
     }
   }
 }
@@ -421,6 +473,7 @@ if (!is_component_build) {
     outputs = [ "$root_build_dir/new_package.re" ]
     args = [
       "-p", rebase_path("$root_build_dir"),
+      "-c", "$chrome_version_full",
       "-a", "$arch_pkgname",
       "-m", "$package_mode",
       "-i", "$icudat_path"
