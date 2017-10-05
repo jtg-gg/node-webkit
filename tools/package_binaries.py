@@ -271,16 +271,21 @@ def generate_target_symbols(platform_name, arch, version):
         target['folder'] = True
     elif platform_name == 'win':
         target['compress'] = None
-        target['input'] = ['nw.sym.7z']
+        target['input'] = ['nw.sym.zip']
         target['output'] = ''.join([package_name, '-symbol-',
                                     'v', version,
                                     '-', platform_name,
-                                    '-', arch, '.7z'])
+                                    '-', arch, '.zip'])
     elif platform_name == 'osx':
         target['compress'] = 'zip'
         target['input'] = [
-                          'nwjs.breakpad.tar'
-                          ]
+            'crashpad_handler.breakpad.sym',
+            'nwjs Framework.breakpad.sym',
+            'nwjs Helper.breakpad.sym',
+            'nwjs.breakpad.sym',
+            'libffmpeg.dylib.breakpad.sym',
+            'libnode.dylib.breakpad.sym',
+        ]
         target['folder'] = True
     else:
         print 'Unsupported platform: ' + platform_name
