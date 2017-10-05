@@ -18,6 +18,7 @@ steps = ['nw', 'symbol', 'headers', 'others']
 # Parse command line args
 parser = argparse.ArgumentParser(description='Package nw binaries.')
 parser.add_argument('-p','--path', help='Where to find the binaries, like out/Release', required=False)
+parser.add_argument('-c','--chromever', help='Chrome version', required=False)
 parser.add_argument('-a','--arch', help='target arch', required=False)
 parser.add_argument('-m','--mode', help='package mode', required=False)
 parser.add_argument('-i','--icudat', help='icudat override', required=False)
@@ -271,16 +272,37 @@ def generate_target_symbols(platform_name, arch, version):
         target['folder'] = True
     elif platform_name == 'win':
         target['compress'] = None
-        target['input'] = ['nw.sym.7z']
+        target['input'] = ['nw.sym.zip']
         target['output'] = ''.join([package_name, '-symbol-',
                                     'v', version,
                                     '-', platform_name,
-                                    '-', arch, '.7z'])
+                                    '-', arch, '.zip'])
     elif platform_name == 'osx':
+        als = ''.join(['AlertNotificationService-', args.chromever, '.breakpad'])
+        crashpad = ''.join(['chrome_crashpad_handler-', args.chromever, '.breakpad'])
+        framework = ''.join(['nwjs Framework-', args.chromever, '.breakpad'])
+        helper = ''.join(['nwjs Helper-', args.chromever, '.breakpad'])
+        nwjs = ''.join(['nwjs-', args.chromever, '.breakpad'])
+        alssym = ''.join([als, '.sym'])
+        crashpadsym = ''.join([crashpad, '.sym'])
+        frameworksym = ''.join([framework, '.sym'])
+        helpersym = ''.join([helper, '.sym'])
+        nwjssym = ''.join([nwjs, '.sym'])
+        os.rename(als, alssym)
+        os.rename(crashpad, crashpadsym)
+        os.rename(framework, frameworksym)
+        os.rename(helper, helpersym)
+        os.rename(nwjs, nwjssym)
         target['compress'] = 'zip'
         target['input'] = [
-                          'nwjs.breakpad.tar'
-                          ]
+            alssym,
+            crashpadsym,
+            frameworksym,
+            helpersym,
+            nwjssym,
+            'libffmpeg.dylib.breakpad.sym',
+            'libnode.dylib.breakpad.sym',
+        ]
         target['folder'] = True
     else:
         print 'Unsupported platform: ' + platform_name
