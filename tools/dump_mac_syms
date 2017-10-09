@@ -46,7 +46,7 @@ BREAKPAD_DUMP_SYMS="${BUILT_PRODUCTS_DIR}/dump_syms"
 #FULL_VERSION="${MAJOR}.${MINOR}.${BUILD}.${PATCH}"
 FULL_VERSION=$1
 
-DSYM_TAR_PATH="${BUILT_PRODUCTS_DIR}/${SRC_APP_NAME}.breakpad.tar"
+DSYM_TAR_PATH="${BUILT_PRODUCTS_DIR}/${SRC_APP_NAME}.breakpad.zip"
 
 # Starting with an already-dumped symbol file at ${original_sym_path},
 # transforms the MODULE line (which must be the first line) from referring to
@@ -63,7 +63,7 @@ redump_syms_variant() {
   local variant_name="${4}"
   local arch="${5}"
 
-  local variant_sym_name="${variant_name}-${FULL_VERSION}-${arch}.breakpad"
+  local variant_sym_name="${variant_name}-${FULL_VERSION}-${arch}.breakpad.sym"
   local variant_sym_path="${BUILT_PRODUCTS_DIR}/${variant_sym_name}"
 
   if [[ "${original_sym_path}" -nt "${variant_sym_path}" ]]; then
@@ -83,6 +83,7 @@ SRC_NAMES=(
     "${SRC_APP_NAME} Helper.app"
     "crashpad_handler"
     "libnode.dylib"
+    "libffmpeg.dylib"
 )
 
 # PDF.plugin is optional. Only include it if present.
@@ -113,7 +114,7 @@ for SRC_NAME in "${SRC_NAMES[@]}"; do
   fi
 
   for ARCH in ${ARCHS}; do
-    BPAD_SYM_NAME="${SRC_NAME}-${FULL_VERSION}-${ARCH}.breakpad"
+    BPAD_SYM_NAME="${SRC_NAME}-${FULL_VERSION}-${ARCH}.breakpad.sym"
     BPAD_SYM_PATH="${BUILT_PRODUCTS_DIR}/${BPAD_SYM_NAME}"
 
     # Only run dump_syms if the file has changed since the last dump. Use -c
@@ -157,5 +158,5 @@ done
 if [ ! -e "${DSYM_TAR_PATH}" ] ; then
   # Change directory so that absolute paths aren't included in the archive.
   (cd "${BUILT_PRODUCTS_DIR}" &&
-   tar -cf "${DSYM_TAR_PATH}" "${DSYMS[@]}")
+   zip -9 "${DSYM_TAR_PATH}" "${DSYMS[@]}")
 fi
