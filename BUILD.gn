@@ -377,6 +377,11 @@ if (is_win && !is_component_build) {
                "$root_build_dir/nw.dll",
                "$root_build_dir/node.dll",
                "$root_build_dir/ffmpeg.dll",
+               "$root_build_dir/libEGL.dll",
+               "$root_build_dir/libGLESv2.dll",
+               "$root_build_dir/swiftshader/libEGL.dll",
+               "$root_build_dir/swiftshader/libGLESv2.dll",
+               "$root_build_dir/nw_elf.dll",
              ]
 
     deps = [
@@ -386,7 +391,12 @@ if (is_win && !is_component_build) {
              ":payload",
              "//v8:nwjc",
              "//chrome/test/chromedriver:chromedriver",
-             "//third_party/ffmpeg:ffmpeg"
+             "//third_party/ffmpeg:ffmpeg",
+             "//third_party/angle:libEGL",
+             "//third_party/angle:libGLESv2",
+             "//third_party/swiftshader/src/OpenGL/libEGL:swiftshader_libEGL",
+             "//third_party/swiftshader/src/OpenGL/libGLESv2:swiftshader_libGLESv2",
+             "//chrome_elf:chrome_elf",
              ]
     outputs = [
       "$root_build_dir/nw.sym.zip"
@@ -396,6 +406,11 @@ if (is_win && !is_component_build) {
       rebase_path("$root_build_dir/nw.dll", root_build_dir),
       rebase_path("$root_build_dir/node.dll", root_build_dir),
       rebase_path("$root_build_dir/ffmpeg.dll", root_build_dir),
+      rebase_path("$root_build_dir/libEGL.dll", root_build_dir),
+      rebase_path("$root_build_dir/libGLESv2.dll", root_build_dir),
+      rebase_path("$root_build_dir/swiftshader/libEGL.dll", root_build_dir),
+      rebase_path("$root_build_dir/swiftshader/libGLESv2.dll", root_build_dir),
+      rebase_path("$root_build_dir/nw_elf.dll", root_build_dir),
       rebase_path("$root_build_dir/nw.sym.zip", root_build_dir),
     ]
   }
