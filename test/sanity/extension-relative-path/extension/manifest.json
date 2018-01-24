@@ -1,0 +1,16 @@
+{
+   "background": {
+      "persistent": true,
+      "scripts": [ "script.js" ]
+   },
+   "description": "nwjs loading extension using relative path",
+   "externally_connectable": {
+    "ids": ["*"]   
+   },
+   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAqf/d21y7oB+uchsHHbxlRv+n8mOlXR18j8/2iZuO7LncRjtYwYdM434ueDqpaJaruBQNar3lCdemMONpPSwDoUtpcuxb023BO7nWRtHyjTerW0JejJWqId6dxn8ONtsVaODLWP2Ka3RiUZUOm2Mr6GksBhYcACXFFXN76+IcaZ/3KT2XhyvMb/7HNGTt31gC09qF1vsr5GZpEnFkt61hDf7prTNv6Edv1Ov/lmAN7d+Ii5BknxDAVWwMpu/PwBYo7jQzdwCRA0N/xQMSbSlvTVw4EV4pCf08Y5WcWC/csEFTlqc2fUptTqwF+iWeeyaAGJsf4+UlI+zWS7xr3C6PswIDAQAB",
+   "manifest_version": 2,
+   "minimum_chrome_version": "34",
+   "name": "nwjs extension test",
+   "short_name": "nwjs extension test",
+   "version": "1.0"
+}
