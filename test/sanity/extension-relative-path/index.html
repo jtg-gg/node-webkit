@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <title>nwjs extension</title>
+</head>
+<body>
+  <script>
+
+
+  function write(msg) {
+    document.getElementById("output").innerHTML += msg;
+  }
+  
+  function writeSuccess(id) {
+    var result = document.createElement('p');
+    result.setAttribute('id', 'result' + id);
+    result.innerHTML = 'success '+ id;
+    document.body.appendChild(result);
+  }
+  
+  function writeFailure(e, id) {
+    var result = document.createElement('p');
+    result.setAttribute('id', 'result' + id);
+    result.innerHTML = 'failure ' + id + ' [' + e + ']';
+    document.body.appendChild(result);
+  }
+
+  
+  function test1() {
+    const testId = 1;
+	const extensionId = "ckdlodophchmlipdbengbnggnbigdlle";
+    chrome.runtime.sendMessage(extensionId, {}, function(res){ 
+	  if (res && res.id == extensionId)
+	    writeSuccess(testId);
+	  else
+	    writeFailure(chrome.runtime.lastError.message, testId);
+	});	
+  }
+  </script>
+  <button id="test1" onclick="test1()">test1</button>
+  <p id="output" />
+</body>
+</html>
