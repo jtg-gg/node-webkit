@@ -22,7 +22,7 @@ You can use the `--remote-debugging-port=port` command line option to specify wh
 
 ## Using devtools extensions
 
-Devtools extensions are fully supported, including the one for ReactJS etc. To use it, add the permission "chrome-extension://*" to manifest.json of the devtools extension, and load it with `--load-extension=path/to/extension` when nw is started. The files for devtools extensions can be copied from extension folder of Chrome browser after you install them from Chrome Web Store.
+Devtools extensions are fully supported, including the one for ReactJS etc. To use it, add the permission "chrome-extension://*" to manifest.json of the devtools extension, and load it with `--load-extension=path/to/extension` when nw is started, take note if you use relative path, the path is relative to your app. The files for devtools extensions can be copied from extension folder of Chrome browser after you install them from Chrome Web Store.
 
 ### Sample
 
