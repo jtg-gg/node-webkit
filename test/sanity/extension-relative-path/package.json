@@ -1,0 +1,5 @@
+{
+  "name": "extension",
+  "main": "index.html",
+  "chromium-args" : "--load-extension=extension"
+}
