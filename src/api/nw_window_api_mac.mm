@@ -50,6 +50,7 @@ bool NwCurrentWindowInternalSetBadgeLabelFunction::RunAsync() {
   std::string badge;
   EXTENSION_FUNCTION_VALIDATE(args_->GetString(0, &badge));
   [[NSApp dockTile] setBadgeLabel:base::SysUTF8ToNSString(badge)];
+  SendResponse(true);
   return true;
 }
 
@@ -69,6 +70,7 @@ bool NwCurrentWindowInternalRequestAttentionInternalFunction::RunAsync() {
     [NSApp cancelUserAttentionRequest:attention_request_id[web_content]];
     attention_request_id.erase(web_content);
   }
+  SendResponse(true);
   return true;
 }
 

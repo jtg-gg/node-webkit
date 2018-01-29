@@ -55,6 +55,7 @@ bool NwAppQuitFunction::RunAsync() {
         base::Bind(&ExtensionService::TerminateExtension,
                    service->AsWeakPtr(),
                    extension_id()));
+  SendResponse(true);
   return true;
 }
 
