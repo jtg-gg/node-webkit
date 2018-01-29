@@ -171,7 +171,7 @@ bool NwCurrentWindowInternalShowDevToolsInternalFunction::RunAsync() {
     devtools_window->SetLoadCompletedCallback(base::Bind(&NwCurrentWindowInternalShowDevToolsInternalFunction::OnOpened, this));
   else
     OnOpened();
-
+  SendResponse(true);
   return true;
 }
 
@@ -185,6 +185,7 @@ bool NwCurrentWindowInternalCloseDevToolsFunction::RunAsync() {
   if (devtools_window) {
     devtools_window->Close();
   }
+  SendResponse(true);
   return true;
 }
 
@@ -237,6 +238,7 @@ bool NwCurrentWindowInternalCapturePageInternalFunction::RunAsync() {
       base::Bind(&NwCurrentWindowInternalCapturePageInternalFunction::CopyFromBackingStoreComplete,
                  this),
       kN32_SkColorType);
+  SendResponse(true);
   return true;
 }
 
@@ -339,6 +341,7 @@ bool NwCurrentWindowInternalClearMenuFunction::RunAsync() {
     window->menu_ = NULL;
   }
 #endif
+  SendResponse(true);
   return true;
 }
 
@@ -459,6 +462,7 @@ bool NwCurrentWindowInternalSetBadgeLabelFunction::RunAsync() {
   NOTIMPLEMENTED() << error_;
   return false;
 #endif
+  SendResponse(true);
   return true;
 }
   
@@ -492,6 +496,7 @@ bool NwCurrentWindowInternalRequestAttentionInternalFunction::RunAsync() {
   }
   window->GetBaseWindow()->FlashFrame(count);
 #endif
+  SendResponse(true);
   return true;
 }
   
@@ -547,6 +552,7 @@ bool NwCurrentWindowInternalSetProgressBarFunction::RunAsync() {
   NOTIMPLEMENTED() << error_;
   return false;
 #endif
+  SendResponse(true);
   return true;
 }
 #endif
