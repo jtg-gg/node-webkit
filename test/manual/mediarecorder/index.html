@@ -25,7 +25,10 @@
     <li><button onclick="screen_cap(true)">screen capture + mic</button></li>
     <li><button onclick="screen_cap(false, true)">tab capture + system</button></li>
     <li><button onclick="screen_cap(false)">screen capture + system</button></li>
+    <li><button onclick="usermedia('canvas', true, true)">canvas + mic </button></li>
   </ol>
+  <canvas id="myCanvas" width="640" height="360" style="border:1px solid #FF0000;">
+  </canvas>
   <h4> check for audio/video quality and sync</h4>
   <p id="output"></p>
   <video autoplay controls></video><br>
@@ -65,6 +68,26 @@
       videolink.href = video.src;
       videolink.download = mimeType;
     }
+  
+    function getRandomColor() {
+      var letters = '0123456789ABCDEF';
+      var color = '#';
+      for (var i = 0; i < 6; i++) {
+        color += letters[Math.floor(Math.random() * 16)];
+      }
+      return color;
+    }
+  
+    function drawCanvas() {
+      setTimeout(function() {
+        var c = document.getElementById("myCanvas");
+        var ctx = c.getContext("2d");
+        ctx.fillStyle = getRandomColor();
+        ctx.fillRect(0, 0, c.width, c.height);
+        drawCanvas();
+      }, 500);
+    }
+    drawCanvas();
 
   function usermedia(video_cond, audio_cond, force_mic) {
     
@@ -113,7 +136,11 @@
     }
     
     if (streamRecord == null)
-      navigator.webkitGetUserMedia({audio: audio_cond, video: video_cond}, successVid, function(){log("webkitGetUserMedia fail");});
+      if (video_cond == 'canvas') {
+        var canvas = document.getElementById("myCanvas");
+        successVid(canvas.captureStream(30));
+      } else
+        navigator.webkitGetUserMedia({audio: audio_cond, video: video_cond}, successVid, function(){log("webkitGetUserMedia fail");});
     else {
       streamRecord.onstop = function (ev) {
         log("streamRecord Event " + ev.type +" "+ this.mimeType +"<br>");
