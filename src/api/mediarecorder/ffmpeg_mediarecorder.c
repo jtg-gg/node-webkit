@@ -157,6 +157,11 @@ int add_stream(OutputStream *ost, AVFormatContext *oc,
       * the motion of the chroma plane does not match the luma plane. */
       c->mb_decision = 2;
     }
+    if (c->codec_id == AV_CODEC_ID_H264) {
+      /* H264 doesn't support alpha pixel */
+      if (AVPixelFormat == AV_PIX_FMT_YUVA420P)
+        c->pix_fmt = AV_PIX_FMT_YUV420P;
+    }
     break;
 
   default:
