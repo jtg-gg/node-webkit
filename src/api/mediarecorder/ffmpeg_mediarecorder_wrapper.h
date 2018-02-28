@@ -50,6 +50,7 @@ private:
   bool have_video, have_audio, audio_only, video_only;
   int forceAudioSync, outTolerance;
   AVDictionary *audioOpt_, *videoOpt_, *muxerOpt_;
+  std::string output_;
 
   AVFrame* blackPixel_;
   SwsContext* blackScaler_;
@@ -65,12 +66,13 @@ private:
   EventCB event_cb_;
 
   int InitFile();
+  static int decode_interrupt_cb(void *ctx);
 
 public:
   FFMpegMediaRecorder();
   ~FFMpegMediaRecorder();
   
-  int Init(const char* mime, const EventCB& dipatcher_cb, const char* audioOpt, const char* videoOpt, const char* muxerOpt);
+  int Init(const char* mime, const EventCB& dipatcher_cb, const char* audioOpt, const char* videoOpt, const char* muxerOpt, const std::string& output);
   int InitVideo(int width, int height, media::VideoPixelFormat pixelFormat);
   int InitAudio(int samplerate, int channels, int frame_size, int forceSync);
   

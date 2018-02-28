@@ -100,8 +100,9 @@ namespace nw {
       const std::string audioParams = *v8::String::Utf8Value(args[5]);
       const std::string videoParams = *v8::String::Utf8Value(args[6]);
       const std::string muxerParams = *v8::String::Utf8Value(args[7]);
+      const std::string output = *v8::String::Utf8Value(args[8]);
 
-      ffmpeg_.Init(mime, event_cb, audioTrack_.IsNull() ? NULL : audioParams.c_str(), videoTrack_.IsNull() ? NULL: videoParams.c_str(), muxerParams.c_str());
+      ffmpeg_.Init(mime, event_cb, audioTrack_.IsNull() ? NULL : audioParams.c_str(), videoTrack_.IsNull() ? NULL: videoParams.c_str(), muxerParams.c_str(), output);
         
       forceSync_ = args[4]->ToInt32(isolate)->Value();
 

@@ -181,6 +181,13 @@ MediaRecorder.prototype.start = function (param1, param2) {
     muxerParams += "cluster_time_limit="+timeslice;
   } else if (this.mimeType == "application/ogg") {
     muxerParams += "page_duration="+timeslice*1000;
+  } else if (this.mimeType == "video/x-flv") {
+    videoParams += "preset=ultrafast;threads=1;slices=1;strict=2";
+    muxerParams += "frag_duration="+timeslice*1000;
+    if (!options.hasOwnProperty('frameRate')) {
+      options.frameRate = 30;
+      videoParams += ";g="+options.frameRate*2;
+    }
   }
 
   if (!options.hasOwnProperty('audioBitRate'))
@@ -203,6 +210,8 @@ MediaRecorder.prototype.start = function (param1, param2) {
       options.audioParams = "";
   if (!options.hasOwnProperty('muxerParams'))
       options.muxerParams = "";
+  if (!options.hasOwnProperty('output'))
+    options.output = "";
 
   // convert all the options to integer
   options.audioBitRate = Math.round(Number(options.audioBitRate));
@@ -232,7 +241,7 @@ MediaRecorder.prototype.start = function (param1, param2) {
 
   var res = nwNative.MediaRecorderStart(this.id, this.mimeType,
     window.URL.createObjectURL(this.stream), audioUrl, options.forceSync,
-    audioParams, videoParams, muxerParams);
+    audioParams, videoParams, muxerParams, options.output);
   
   if(res) privates(this).state = "recording";
 };
@@ -266,7 +275,7 @@ MediaRecorder.prototype.requestData = function () {
 };
 
 MediaRecorder.canRecordMimeType = function (mimeType) {
-  if (mimeType == "video/mp4" || mimeType == "video/webm" || mimeType == "application/ogg")
+  if (mimeType == "video/mp4" || mimeType == "video/webm" || mimeType == "application/ogg" || mimeType == "video/x-flv")
     return "probably";
   return "";
 }

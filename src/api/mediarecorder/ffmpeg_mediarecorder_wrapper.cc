@@ -197,7 +197,7 @@ extern "C" {
     return have_audio;
   }
 
-  int FFMpegMediaRecorder::Init(const char* mime, const EventCB& event_cb, const char* audioOpt, const char* videoOpt, const char* muxerOpt) {
+  int FFMpegMediaRecorder::Init(const char* mime, const EventCB& event_cb, const char* audioOpt, const char* videoOpt, const char* muxerOpt, const std::string& output) {
     event_cb_ = event_cb;
     
     AVDictionary** opts[3] = {&audioOpt_, &videoOpt_, &muxerOpt_};
@@ -221,11 +221,16 @@ extern "C" {
       LOG(ERROR) << "avformat_alloc_output_context2 fails";
       return -1;
     }
-
+    if (strcmp(oc->oformat->extensions, "flv")==0) {
+      oc->oformat->audio_codec = AV_CODEC_ID_AAC;
+      oc->oformat->video_codec = AV_CODEC_ID_H264;
+    }
     fmt = oc->oformat;
     
     audio_only = audioOpt && !videoOpt;
     video_only = videoOpt && !audioOpt;
+    
+    output_ = output;
 
     return 0;
   }
@@ -238,16 +243,33 @@ extern "C" {
     return size;
   }
 
+  int FFMpegMediaRecorder::decode_interrupt_cb(void *ctx) {
+    FFMpegMediaRecorder* this_ = reinterpret_cast<FFMpegMediaRecorder*>(ctx);
+    if(this_->oc->pb)
+      return 0;
+    double elapsed = (base::TimeTicks::Now() - this_->videoStart_).InMillisecondsF();
+    return (3000.0 - elapsed) > 0 ? 0 : -1;
+  }
+  
   int FFMpegMediaRecorder::InitFile() {
     /* open the output file, if needed */
     if (!(fmt->flags & AVFMT_NOFILE)) {
-      int buffer_size = 32 * 1024;
-      uint8_t* buffer = (uint8_t*)av_malloc(buffer_size);
-      oc->pb = avio_alloc_context(buffer, buffer_size, AVIO_FLAG_WRITE, &event_cb_,
+      uint8_t* buffer = NULL;
+      if (!output_.empty()) {
+        avformat_network_init();
+        const AVIOInterruptCB int_cb = { FFMpegMediaRecorder::decode_interrupt_cb, this};
+        assert(videoStart_.is_null());
+        videoStart_ = base::TimeTicks::Now();
+        avio_open2(&oc->pb, output_.c_str(), AVIO_FLAG_WRITE, &int_cb, &muxerOpt_);
+        videoStart_ = base::TimeTicks::FromInternalValue(0);
+      } else {
+        int buffer_size = 32 * 1024;
+        buffer = (uint8_t*)av_malloc(buffer_size);
+        oc->pb = avio_alloc_context(buffer, buffer_size, AVIO_FLAG_WRITE, &event_cb_,
                               NULL,
                               writeCB,
                               NULL);
-      
+      }
       if (oc->pb == 0) {
         av_free(buffer);
         LOG(ERROR) << "avio_alloc_context fails";
@@ -679,8 +701,14 @@ extern "C" {
       close_stream(oc, &audio_st);
 
     if (fileReady_ && !(fmt->flags & AVFMT_NOFILE)) {
-      av_free(oc->pb->buffer);
-      av_free(oc->pb);
+      if (!output_.empty()) {
+        avio_close(oc->pb);
+        avformat_network_deinit();
+        output_.clear();
+      } else {
+        av_free(oc->pb->buffer);
+        avio_context_free(&oc->pb);
+      }
     }
 
     /* free the stream */
