@@ -12,12 +12,14 @@
     <option value="3">webm VP8 mediarecorder</option>
     <option value="4">webm VP9 mediarecorder</option>
     <option value="5">webm H264 mediarecorder</option>
+    <option value="6">flv H264 mediarecorder</option>
   </select>
   <input type="checkbox" id="windowToFront">windowToFront<br>
   <br>
-  videoParams: <input type="text" size=100 id="videoParams" value="preset=ultrafast;//tune=zerolatency;//threads=1;video_size=1280x720"><br>
-  audioParams: <input type="text" size=100 id="audioParams" value="ar=16000;//ab=0"><br>
+  videoParams: <input type="text" size=100 id="videoParams" value="preset=ultrafast;//tune=zerolatency;//threads=1;video_size=1280x720;b=650000"><br>
+  audioParams: <input type="text" size=100 id="audioParams" value="ar=44100;ab=96000"><br>
   muxerParams: <input type="text" size=100 id="muxerParams" value="frag_duration=1000000;cluster_time_limit=1000;page_duration=1000000"><br>
+  RTMP: <input type="text" size=100 id="rtmpAddress" value="rtmp://a.rtmp.youtube.com/live2/yourkey"><br>
   <ol>
     <li><button onclick="usermedia(false, true)">mic </button></li>
     <li><button onclick="usermedia({mandatory:{}, optional:[{minWidth: 1280},{minHeight: 720}]}, true)">webcam + mic </button></li>
@@ -78,12 +80,27 @@
       return color;
     }
   
+    function checkTime(i) {
+      if (i < 10) {i = "0" + i};
+      return i;
+    }
+
     function drawCanvas() {
       setTimeout(function() {
         var c = document.getElementById("myCanvas");
         var ctx = c.getContext("2d");
         ctx.fillStyle = getRandomColor();
         ctx.fillRect(0, 0, c.width, c.height);
+        ctx.fillStyle = "black";
+        var today = new Date();
+        var h = today.getHours();
+        var m = today.getMinutes();
+        var s = today.getSeconds();
+        m = checkTime(m);
+        s = checkTime(s);
+        ctx.font = "160px Arial";
+        var text = h + ':' + m + ':' + s;
+        ctx.fillText(text, 4, 320);
         drawCanvas();
       }, 500);
     }
@@ -112,12 +129,13 @@
 	    video.muted = stream.getAudioTracks()[0].label != "Tab audio";
 	  }
       video.src = window.URL.createObjectURL(stream);
-      if(typeof nw != "undefined" && nw.MediaRecorder && document.getElementById("format").selectedIndex < 2) {
-        const isMP4 = document.getElementById("format").selectedIndex == 0;
+      const formatIndex = document.getElementById("format").selectedIndex;
+      if(typeof nw != "undefined" && nw.MediaRecorder && formatIndex < 2) {
+        const isMP4 = formatIndex == 0;
         streamRecord = new nw.MediaRecorder(stream, isMP4 ? 'video/mp4' : (video_cond ? 'video/webm' : 'application/ogg'));
-      } else {
+      } else if (formatIndex < 5) {
         var mimeString = 'video/webm';
-        switch(document.getElementById("format").selectedIndex) {
+        switch(formatIndex) {
           case 2:
             mimeString += ';codecs=vp8';
             break;
@@ -129,10 +147,16 @@
             break;
         }
         streamRecord = new MediaRecorder(stream, {mimeType: mimeString});
-      }  
+      } else {
+        streamRecord = new nw.MediaRecorder(stream, "video/x-flv");
+      }
         addStreamRecordEvent(streamRecord);
         recordedBlobs = [];
-        streamRecord.start(1000, {forceSync:1, videoParams:document.getElementById('videoParams').value, audioParams:document.getElementById('audioParams').value, muxerParams:document.getElementById('muxerParams').value});
+        streamRecord.start(1000, {forceSync:1,
+                                  videoParams:document.getElementById('videoParams').value,
+                                  audioParams:document.getElementById('audioParams').value,
+                                  muxerParams:document.getElementById('muxerParams').value,
+                                  output: formatIndex==5 ? document.getElementById('rtmpAddress').value : ""});
     }
     
     if (streamRecord == null)
