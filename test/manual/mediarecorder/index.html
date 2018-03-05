@@ -171,7 +171,9 @@
                                   videoParams:document.getElementById('videoParams').value,
                                   audioParams:document.getElementById('audioParams').value,
                                   muxerParams:document.getElementById('muxerParams').value,
-                                  output: formatIndex==5 ? document.getElementById('rtmpAddress').value : ""});
+                                  output: formatIndex==5 ? document.getElementById('rtmpAddress').value : "",
+                                  loglevel:40
+                           });
     }
     
     if (streamRecord == null)
