@@ -54,11 +54,16 @@
       log("streamRecord Event " + ev.type +" "+ this.mimeType)
     }
 
+    function errorEvent(ev, msg) {
+      log("streamRecord Error " + msg +" "+ this.mimeType)
+    }
+
     function addStreamRecordEvent(streamRecord_) {
       streamRecord_.ondataavailable = recordBlob;
       streamRecord_.onpause  = debugEvent;
       streamRecord_.onresume = debugEvent;
       streamRecord_.onstart  = debugEvent;
+      streamRecord_.onerror  = errorEvent;
     }
   
     function displayVideo(mimeType) {
