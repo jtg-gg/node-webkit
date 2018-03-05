@@ -44,7 +44,7 @@ mediaRecorderEvents.stopEvent.addListener(function(id) {
   if (!obj)
     return;
   privates(obj).state = "inactive";
-  if (obj.ondataavailable)
+  if (obj.ondataavailable && obj.output && obj.output.length == 0)
     obj.ondataavailable(new BlobEvent('dataavailable', {data: new Blob([null])}));
   if (obj.onstop)
     obj.onstop(new Event('stop'));
@@ -99,6 +99,7 @@ function MediaRecorder(stream, mimeType) {
   privates(this).stream = stream;
   privates(this).mimeType = mimeType;
   privates(this).state = "inactive";
+  privates(this).output = "";
   this.ignoreMutedMedia = true;
 
   nw.Obj.create(this.id, 'MediaRecorder', {});
@@ -108,6 +109,7 @@ function MediaRecorder(stream, mimeType) {
 MediaRecorder.prototype.__defineGetter__('stream', function() {return privates(this).stream;});
 MediaRecorder.prototype.__defineGetter__('mimeType', function() {return privates(this).mimeType;});
 MediaRecorder.prototype.__defineGetter__('state', function() {return privates(this).state;});
+MediaRecorder.prototype.__defineGetter__('output', function() {return privates(this).output;});
 
 MediaRecorder.prototype.__defineGetter__('onstart', function() {return privates(this).onstart;});
 MediaRecorder.prototype.__defineSetter__('onstart', function(callback) {
@@ -244,6 +246,7 @@ MediaRecorder.prototype.start = function (param1, param2) {
   mediaRecorderEvents.objs[this.id] = this;
   var audioUrl = null;
   if(privates(this).audioStream) audioUrl = window.URL.createObjectURL(privates(this).audioStream);
+  privates(this).output = options.output;
 
   videoParams += ";time_base=1/"+options.frameRate;
   if (options.videoBitRate)
@@ -261,7 +264,7 @@ MediaRecorder.prototype.start = function (param1, param2) {
 
   var res = nwNative.MediaRecorderStart(this.id, this.mimeType,
     window.URL.createObjectURL(this.stream), audioUrl, options.forceSync,
-    audioParams, videoParams, muxerParams, options.output, options.loglevel);
+    audioParams, videoParams, muxerParams, this.output, options.loglevel);
   
   if(res) privates(this).state = "recording";
 };
