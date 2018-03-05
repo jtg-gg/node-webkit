@@ -84,12 +84,16 @@
       if (i < 10) {i = "0" + i};
       return i;
     }
+    var drawCanvasDate = new Date();
+    var lastColor = getRandomColor();
 
     function drawCanvas() {
       setTimeout(function() {
         var c = document.getElementById("myCanvas");
         var ctx = c.getContext("2d");
-        ctx.fillStyle = getRandomColor();
+        const frameTime = new Date().getMilliseconds() - drawCanvasDate.getMilliseconds();
+        //console.log(frameTime);
+        ctx.fillStyle = lastColor;
         ctx.fillRect(0, 0, c.width, c.height);
         ctx.fillStyle = "black";
         var today = new Date();
@@ -101,10 +105,16 @@
         ctx.font = "160px Arial";
         var text = h + ':' + m + ':' + s;
         ctx.fillText(text, 4, 320);
+        drawCanvasDate = new Date();
         drawCanvas();
-      }, 500);
+      }, 1000.0/30.0);
+    }
+  
+    function changeColor() {
+      setTimeout(function(){lastColor = getRandomColor(); changeColor()}, 500);
     }
     drawCanvas();
+    changeColor();
 
   function usermedia(video_cond, audio_cond, force_mic) {
     
