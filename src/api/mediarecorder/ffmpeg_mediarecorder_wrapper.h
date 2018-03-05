@@ -72,7 +72,7 @@ public:
   FFMpegMediaRecorder();
   ~FFMpegMediaRecorder();
   
-  int Init(const char* mime, const EventCB& dipatcher_cb, const char* audioOpt, const char* videoOpt, const char* muxerOpt, const std::string& output);
+  int Init(const char* mime, const EventCB& dipatcher_cb, const char* audioOpt, const char* videoOpt, const char* muxerOpt, const std::string& output, const int logLevel);
   int InitVideo(int width, int height, media::VideoPixelFormat pixelFormat);
   int InitAudio(int samplerate, int channels, int frame_size, int forceSync);
   

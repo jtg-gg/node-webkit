@@ -230,6 +230,8 @@ MediaRecorder.prototype.start = function (param1, param2) {
       options.muxerParams = "";
   if (!options.hasOwnProperty('output'))
     options.output = "";
+  if (!options.hasOwnProperty('loglevel'))
+    options.loglevel = -8; // quiet
 
   // convert all the options to integer
   options.audioBitRate = Math.round(Number(options.audioBitRate));
@@ -259,7 +261,7 @@ MediaRecorder.prototype.start = function (param1, param2) {
 
   var res = nwNative.MediaRecorderStart(this.id, this.mimeType,
     window.URL.createObjectURL(this.stream), audioUrl, options.forceSync,
-    audioParams, videoParams, muxerParams, options.output);
+    audioParams, videoParams, muxerParams, options.output, options.loglevel);
   
   if(res) privates(this).state = "recording";
 };

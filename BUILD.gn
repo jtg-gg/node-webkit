@@ -54,9 +54,6 @@ static_library("nw_ffmpeg") {
       "HAVE_AV_CONFIG_H",
     ]
   }
-  if (is_official_build) {
-    defines += [ "CHROMIUM_NO_LOGGING" ]
-  }
   sources = [
     "src/api/mediarecorder/ffmpeg_mediarecorder.h",
     "src/api/mediarecorder/ffmpeg_mediarecorder.c",

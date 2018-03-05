@@ -40,11 +40,11 @@ extern "C" {
   void ff_color_frame(AVFrame *frame, const int *c);
 #ifdef OS_WIN
   void av_log_nwjs_callback(void* ptr, int level, const char* fmt, va_list vl) {
-    if (level > AV_LOG_INFO) return;
+    if (level > av_log_get_level()) return;
     char dst[1024];
     int idx = vsnprintf(dst, 1024, fmt, vl);
     if (idx >= 0 && idx < 1024) {
-      OutputDebugStringA(dst);
+      LOG(INFO) << dst;
     }
   }
 #endif
@@ -108,7 +108,7 @@ extern "C" {
     //av_log_set_level(AV_LOG_INFO);
 #ifdef OS_WIN
     //don't forget to add the function def in ffmpegsumo.sigs
-    //av_log_set_callback(av_log_nwjs_callback);
+    av_log_set_callback(av_log_nwjs_callback);
 #endif
     av_register_all();
   }
@@ -202,7 +202,7 @@ extern "C" {
     return have_audio;
   }
 
-  int FFMpegMediaRecorder::Init(const char* mime, const EventCB& event_cb, const char* audioOpt, const char* videoOpt, const char* muxerOpt, const std::string& output) {
+  int FFMpegMediaRecorder::Init(const char* mime, const EventCB& event_cb, const char* audioOpt, const char* videoOpt, const char* muxerOpt, const std::string& output, const int logLevel) {
     event_cb_ = event_cb;
     
     AVDictionary** opts[3] = {&audioOpt_, &videoOpt_, &muxerOpt_};
@@ -236,6 +236,7 @@ extern "C" {
     video_only = videoOpt && !audioOpt;
     
     output_ = output;
+    av_log_set_level(logLevel);
 
     return 0;
   }
