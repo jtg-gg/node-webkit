@@ -31,6 +31,8 @@ extern "C" {
 #include <libavutil/parseutils.h>
 #include "ffmpeg_mediarecorder_wrapper.h"
   
+#define FFMPEG_MEDIA_RECORDER_ERROR(MSG) LOG(ERROR) << MSG; event_cb_.Run("NWObjectMediaRecorderError", base::Value::ToUniquePtrValue(base::Value(MSG)).release());
+
 //#define MEMORY_PROFILING
 //#define DO_CPU_PROFILING
 
@@ -143,7 +145,7 @@ extern "C" {
         fmt->video_codec, bitrate, -1, -1, width, height, ::VideoPixelFormatToAVPixelFormat(videoFormat)) == 0) {
         have_video = 1;
       } else {
-        LOG(ERROR) << "add_stream (video) fails";
+        FFMPEG_MEDIA_RECORDER_ERROR("add_stream (video) fails");
       }
     }
 
@@ -152,8 +154,11 @@ extern "C" {
     if (have_video)
       have_video = open_video(oc, video_codec, &video_st, &videoOpt_) == 0;
     
-    LOG_IF(INFO, have_video) << "open_video success";
-    LOG_IF(ERROR, !have_video) << "open_video fails";
+    if (have_video) {
+      LOG(INFO) << "open_video success";
+    } else {
+      FFMPEG_MEDIA_RECORDER_ERROR("open_video fails");
+    }
 
     if (have_video && (have_audio || video_only))
       InitFile();
@@ -179,7 +184,7 @@ extern "C" {
         fmt->audio_codec, -1, target_rate, channels, -1, -1, -1) == 0) {
         have_audio = 1;
       } else {
-        LOG(ERROR) << "add_stream (audio) fails";
+        FFMPEG_MEDIA_RECORDER_ERROR("add_stream (audio) fails");
       }
     }
 
@@ -218,7 +223,7 @@ extern "C" {
     /* allocate the output media context */
     avformat_alloc_output_context2(&oc, av_guess_format(NULL, NULL, mime), NULL, NULL);
     if (!oc) {
-      LOG(ERROR) << "avformat_alloc_output_context2 fails";
+      FFMPEG_MEDIA_RECORDER_ERROR("avformat_alloc_output_context2 fails");
       return -1;
     }
     if (strcmp(oc->oformat->extensions, "flv")==0) {
@@ -272,14 +277,14 @@ extern "C" {
       }
       if (oc->pb == 0) {
         av_free(buffer);
-        LOG(ERROR) << "avio_alloc_context fails";
+        FFMPEG_MEDIA_RECORDER_ERROR("avio_alloc_context fails")
         return -1;
       }
     }
 
     /* Write the stream header, if any. */
     if (avformat_write_header(oc, &muxerOpt_) < 0) {
-      LOG(ERROR) << "avformat_write_header fails";
+      FFMPEG_MEDIA_RECORDER_ERROR("avformat_write_header fails");
       return -1;
     }
 

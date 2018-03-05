@@ -79,6 +79,15 @@ mediaRecorderEvents.dataEvent.addListener(function(id) {
     obj.onresume(new Event('resume'));
 });
 
+mediaRecorderEvents.dataEvent = new NWEvent("NWObjectMediaRecorderError");
+mediaRecorderEvents.dataEvent.addListener(function(id, error) {
+  var obj = mediaRecorderEvents.objs[id];
+  if (!obj)
+    return;
+  if (obj.onerror)
+    obj.onerror(new Event('error'), error);
+});
+
 function MediaRecorder(stream, mimeType) {
   if (!(this instanceof MediaRecorder)) {
     return new MediaRecorder();
@@ -142,6 +151,15 @@ MediaRecorder.prototype.__defineSetter__('onresume', function(callback) {
     privates(this).onresume = callback;
   }else if(typeof(callback) == "function") {
     privates(this).onresume = callback;
+  }
+})
+
+MediaRecorder.prototype.__defineGetter__('onerror', function() {return privates(this).onerror;});
+MediaRecorder.prototype.__defineSetter__('onerror', function(callback) {
+  if(callback == null) {
+    privates(this).onerror = callback;
+  }else if(typeof(callback) == "function") {
+    privates(this).onerror = callback;
   }
 })
 
