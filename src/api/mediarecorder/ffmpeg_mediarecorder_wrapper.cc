@@ -204,7 +204,8 @@ extern "C" {
 
   int FFMpegMediaRecorder::Init(const char* mime, const EventCB& event_cb, const char* audioOpt, const char* videoOpt, const char* muxerOpt, const std::string& output, const int logLevel) {
     event_cb_ = event_cb;
-    
+    av_log_set_level(logLevel);
+
     AVDictionary** opts[3] = {&audioOpt_, &videoOpt_, &muxerOpt_};
     const char* charOpts[3] = {audioOpt, videoOpt, muxerOpt};
     
@@ -236,8 +237,19 @@ extern "C" {
     video_only = videoOpt && !audioOpt;
     
     output_ = output;
-    av_log_set_level(logLevel);
 
+    if (!output_.empty()) {
+      avformat_network_init();
+      const AVIOInterruptCB int_cb = { FFMpegMediaRecorder::decode_interrupt_cb, this};
+      assert(videoStart_.is_null());
+      videoStart_ = base::TimeTicks::Now();
+      avio_open2(&oc->pb, output_.c_str(), AVIO_FLAG_WRITE, &int_cb, &muxerOpt_);
+      videoStart_ = base::TimeTicks::FromInternalValue(0);
+      if (oc->pb == 0) {
+        FFMPEG_MEDIA_RECORDER_ERROR("avio_alloc_context fails")
+        return -1;
+      }
+    }
     return 0;
   }
   
@@ -261,14 +273,7 @@ extern "C" {
     /* open the output file, if needed */
     if (!(fmt->flags & AVFMT_NOFILE)) {
       uint8_t* buffer = NULL;
-      if (!output_.empty()) {
-        avformat_network_init();
-        const AVIOInterruptCB int_cb = { FFMpegMediaRecorder::decode_interrupt_cb, this};
-        assert(videoStart_.is_null());
-        videoStart_ = base::TimeTicks::Now();
-        avio_open2(&oc->pb, output_.c_str(), AVIO_FLAG_WRITE, &int_cb, &muxerOpt_);
-        videoStart_ = base::TimeTicks::FromInternalValue(0);
-      } else {
+      if (output_.empty()) {
         int buffer_size = 32 * 1024;
         buffer = (uint8_t*)av_malloc(buffer_size);
         oc->pb = avio_alloc_context(buffer, buffer_size, AVIO_FLAG_WRITE, &event_cb_,
