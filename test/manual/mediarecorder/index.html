@@ -70,9 +70,10 @@
       var blob = new Blob(recordedBlobs);
       var video = document.querySelector('video');
       video.muted = false;
-      video.src = window.URL.createObjectURL(blob);
+      if (mimeType != "video/x-flv")
+        video.src = window.URL.createObjectURL(blob);
       var videolink = document.getElementById("videolink");
-      videolink.href = video.src;
+      videolink.href = window.URL.createObjectURL(blob);
       videolink.download = mimeType;
     }
   
@@ -91,16 +92,19 @@
     }
     var drawCanvasDate = new Date();
     var lastColor = getRandomColor();
+    var lastFps = 0;
+    var frameCounter = 0;
 
     function drawCanvas() {
       setTimeout(function() {
         var c = document.getElementById("myCanvas");
         var ctx = c.getContext("2d");
-        const frameTime = new Date().getMilliseconds() - drawCanvasDate.getMilliseconds();
-        //console.log(frameTime);
         ctx.fillStyle = lastColor;
         ctx.fillRect(0, 0, c.width, c.height);
         ctx.fillStyle = "black";
+        ctx.font = "20px Arial";
+        frameCounter++;
+        ctx.fillText(lastFps, 4, 40);
         var today = new Date();
         var h = today.getHours();
         var m = today.getMinutes();
@@ -118,9 +122,13 @@
     function changeColor() {
       setTimeout(function(){lastColor = getRandomColor(); changeColor()}, 500);
     }
+    function updateFPS() {
+      setTimeout(function(){lastFps = frameCounter; frameCounter=0; updateFPS()}, 1000);
+    }
+
     drawCanvas();
     changeColor();
-
+    updateFPS();
   function usermedia(video_cond, audio_cond, force_mic) {
     
     function successVid(stream) {
