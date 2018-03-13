@@ -89,6 +89,7 @@ extern "C" {
 
     fmt = NULL;
     oc = NULL;
+    oc2 = NULL;
     have_video = 0;
     have_audio = 0;
     audio_only = 0;
@@ -239,15 +240,35 @@ extern "C" {
     output_ = output;
 
     if (!output_.empty()) {
+      std::stringstream outputStream(output_);
+      std::vector<std::string> outputs;
+      std::string token;
+      while(std::getline(outputStream, token, ';')) {
+        outputs.push_back(token);
+      }
+      
       avformat_network_init();
-      const AVIOInterruptCB int_cb = { FFMpegMediaRecorder::decode_interrupt_cb, this};
+      const AVIOInterruptCB int_cb = { FFMpegMediaRecorder::decode_interrupt_cb, this };
       assert(videoStart_.is_null());
       videoStart_ = base::TimeTicks::Now();
-      avio_open2(&oc->pb, output_.c_str(), AVIO_FLAG_WRITE, &int_cb, &muxerOpt_);
+      avio_open2(&oc->pb, outputs[0].c_str(), AVIO_FLAG_WRITE, &int_cb, &muxerOpt_);
       videoStart_ = base::TimeTicks::FromInternalValue(0);
       if (oc->pb == 0) {
-        FFMPEG_MEDIA_RECORDER_ERROR("avio_alloc_context fails")
+        FFMPEG_MEDIA_RECORDER_ERROR("avio_open2 fails")
         return -1;
+      }
+      for (unsigned int i=1; i<outputs.size(); i++) {
+        const char* fileName = outputs[i].c_str();
+        avformat_alloc_output_context2(&oc2, NULL, NULL, fileName);
+        if (!oc2) {
+          FFMPEG_MEDIA_RECORDER_ERROR("avformat_alloc_output_context2 fails");
+          return -1;
+        }
+        avio_open2(&oc2->pb, fileName, AVIO_FLAG_WRITE, NULL, &muxerOpt_);
+        if (oc2->pb == 0) {
+          FFMPEG_MEDIA_RECORDER_ERROR("avio_open2 fails")
+          return -1;
+        }
       }
     }
     return 0;
@@ -292,6 +313,30 @@ extern "C" {
     if (avformat_write_header(oc, &muxerOpt_) < 0) {
       FFMPEG_MEDIA_RECORDER_ERROR("avformat_write_header fails");
       return -1;
+    }
+
+    if (oc2) {
+      for (unsigned int i=0; i<oc->nb_streams; i++) {
+        AVStream *out_stream;
+        AVStream *in_stream = oc->streams[i];
+        AVCodecParameters *in_codecpar = in_stream->codecpar;
+        
+        out_stream = avformat_new_stream(oc2, NULL);
+        if (!out_stream) {
+          FFMPEG_MEDIA_RECORDER_ERROR("Failed allocating output stream");
+          return -1;
+        }
+        
+        if (avcodec_parameters_copy(out_stream->codecpar, in_codecpar) < 0) {
+          FFMPEG_MEDIA_RECORDER_ERROR("Failed to copy codec parameters");
+          return -1;
+        }
+        out_stream->codecpar->codec_tag = 0;
+      }
+      if (avformat_write_header(oc2, &muxerOpt_) < 0) {
+        FFMPEG_MEDIA_RECORDER_ERROR("avformat_write_header fails");
+        return -1;
+      }
     }
 
     fileReady_ = true;
@@ -515,8 +560,8 @@ extern "C" {
     base::AutoLock lock(lock_);
     PROFILE(_write_frame, &Lock_WriteFrame, 0);
     AVPacket* avPacket = pkt.get()->get();
-    if (write_frame(oc, &ost->codec->time_base, ost->st, avPacket) != 0) {
-      DLOG(ERROR) << " Error while writing AUDIO frame";
+    if (write_frame((AVFormatContext*[]){oc, oc2, NULL}, &ost->codec->time_base, ost->st, avPacket) != 0) {
+      DLOG(ERROR) << " WriteFrame Error oc";
     }
     assert(avPacket->buf == NULL && avPacket->data == NULL && avPacket->size == 0);
   }
@@ -633,15 +678,14 @@ extern "C" {
     Stop();
   }
 
-  bool FFMpegMediaRecorder::Stop() {
+  void FFMpegMediaRecorder::Stop() {
     if (audioOpt_) av_dict_free(&audioOpt_);
     if (videoOpt_) av_dict_free(&videoOpt_);
     if (muxerOpt_) av_dict_free(&muxerOpt_);
     
     if (oc == NULL)
-      return false;
+      return;
 
-    base::AutoLock lock(lock_);
 #ifdef MEMORY_PROFILING
     LOG(INFO) << "FFMpegAVPacket before stop: " << FFMpegAVPacket::object_counter_;
 #endif
@@ -649,7 +693,7 @@ extern "C" {
 #ifdef MEMORY_PROFILING
     LOG(INFO) << "FFMpegAVPacket after  stop: " << FFMpegAVPacket::object_counter_ << ", Max object: " << FFMpegAVPacket::max_object_;
 #endif
-
+    base::AutoLock lock(lock_);
     AVCodecContext *c;
     int res;
     
@@ -661,7 +705,7 @@ extern "C" {
         AVPacket pkt = { 0 };
         res = write_video_frame(oc, &video_st, NULL, &pkt);
         if (res == 0) {
-          if (write_frame(oc, &c->time_base, video_st.st, &pkt) != 0) {
+          if (write_frame((AVFormatContext*[]){oc, oc2, NULL}, &c->time_base, video_st.st, &pkt) != 0) {
             DLOG(ERROR) << " Error while writing VIDEO frame";
           }
         }
@@ -675,7 +719,7 @@ extern "C" {
         AVPacket pkt = { 0 }; // data and size must be 0;
         res = write_audio_frame(&audio_st, &pkt, 0);
         if (res >= 0) {
-          if (write_frame(oc, &c->time_base, audio_st.st, &pkt) != 0) {
+          if (write_frame((AVFormatContext*[]){oc, oc2, NULL}, &c->time_base, audio_st.st, &pkt) != 0) {
             DLOG(ERROR) << " Error while writing AUDIO frame";
           }
         }
@@ -688,7 +732,7 @@ extern "C" {
         AVPacket pkt = { 0 }; // data and size must be 0;
         res = avcodec_receive_packet(c, &pkt) == 0;
         if (res) {
-          if (write_frame(oc, &c->time_base, audio_st.st, &pkt) != 0) {
+          if (write_frame((AVFormatContext*[]){oc, oc2, NULL}, &c->time_base, audio_st.st, &pkt) != 0) {
             DLOG(ERROR) << " Error while writing AUDIO frame";
           }
         }
@@ -702,8 +746,10 @@ extern "C" {
     * close the CodecContexts open when you wrote the header; otherwise
     * av_write_trailer() may try to use memory that was freed on
     * av_codec_close(). */
-    if (fileReady_)
+    if (fileReady_) {
       av_write_trailer(oc);
+      if (oc2) av_write_trailer(oc2);
+    }
 
     /* Close each codec. */
     if (have_video)
@@ -714,6 +760,7 @@ extern "C" {
     if (fileReady_ && !(fmt->flags & AVFMT_NOFILE)) {
       if (!output_.empty()) {
         avio_close(oc->pb);
+        if (oc2) avio_close(oc2->pb);
         avformat_network_deinit();
         output_.clear();
       } else {
@@ -724,11 +771,11 @@ extern "C" {
 
     /* free the stream */
     avformat_free_context(oc);
-
+    avformat_free_context(oc2);
     oc = NULL;
+    oc2 = NULL;
     
     event_cb_.Run("NWObjectMediaRecorderStop",
                   NULL);
-    return true;
   }
 };

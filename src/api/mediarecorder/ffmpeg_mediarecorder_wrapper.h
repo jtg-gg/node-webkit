@@ -46,7 +46,7 @@ public:
 private:
   OutputStream video_st, audio_st;
   const AVOutputFormat *fmt;
-  AVFormatContext *oc;
+  AVFormatContext *oc,*oc2;
   bool have_video, have_audio, audio_only, video_only;
   int forceAudioSync, outTolerance;
   AVDictionary *audioOpt_, *videoOpt_, *muxerOpt_;
@@ -88,7 +88,7 @@ public:
   
   void RequestData(bool sendToThread = true);
 
-  bool Stop();
+  void Stop();
 };
 
 #ifdef __cplusplus

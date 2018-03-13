@@ -77,7 +77,7 @@ extern "C" {
   */
   int write_audio_frame(OutputStream *ost, AVPacket* pkt, int srcNumSamples);
 
-  int write_frame(AVFormatContext *fmt_ctx, const AVRational *time_base, AVStream *st, AVPacket *pkt);
+  int write_frame(AVFormatContext *fmt_ctx[], const AVRational *time_base, AVStream *st, AVPacket *pkt);
 
 #ifdef __cplusplus
 };

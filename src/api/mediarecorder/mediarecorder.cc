@@ -33,6 +33,7 @@
 #include "media/base/bind_to_current_loop.h"
 #include "media/base/video_frame.h"
 #include "base/strings/utf_string_conversions.h"
+#include "base/task_scheduler/post_task.h"
 #include "base/threading/thread.h"
 
 #include "ffmpeg_mediarecorder_wrapper.h"
@@ -125,6 +126,16 @@ namespace nw {
 
       if (!videoTrack_.IsNull())
         MediaStreamVideoSink::DisconnectFromTrack();
+
+      base::PostTaskWithTraitsAndReply(
+        FROM_HERE,
+        { base::MayBlock(), base::TaskPriority::BACKGROUND,
+        base::TaskShutdownBehavior::CONTINUE_ON_SHUTDOWN },
+        base::Bind(&FFMpegMediaRecorder::Stop,
+                base::Unretained(&ffmpeg_)),
+        base::Bind(&MediaRecorderSink::Release,
+                this)
+      );
     }
 
     void Pause() {
@@ -247,7 +258,6 @@ namespace nw {
       return;
     }
     i->second->Stop();
-    i->second->Release();
     mrsMap.erase(i);
     args.GetReturnValue().Set(true);
   }
