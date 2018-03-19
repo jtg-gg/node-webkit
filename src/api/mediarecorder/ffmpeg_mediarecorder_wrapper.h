@@ -46,7 +46,8 @@ public:
 private:
   OutputStream video_st, audio_st;
   const AVOutputFormat *fmt;
-  AVFormatContext *oc,*oc2;
+  AVFormatContext *oc;
+  std::vector<AVFormatContext*> oc2;
   bool have_video, have_audio, audio_only, video_only;
   int forceAudioSync, outTolerance;
   AVDictionary *audioOpt_, *videoOpt_, *muxerOpt_;
@@ -66,6 +67,8 @@ private:
   EventCB event_cb_;
 
   int InitFile();
+  
+  base::TimeTicks interrupt_timer_;
   static int decode_interrupt_cb(void *ctx);
 
 public:

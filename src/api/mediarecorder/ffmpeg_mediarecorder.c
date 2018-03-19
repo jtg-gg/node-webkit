@@ -87,7 +87,7 @@ int write_frame(AVFormatContext *fmt_ctx[], const AVRational *time_base, AVStrea
     /* Write the compressed frame to the media file. */
     ret += av_interleaved_write_frame(ctx, clone);
     av_packet_free(&clone);
-    ctx = *fmt_ctx++;
+    ctx = *(++fmt_ctx);
   } while (ctx != NULL);
   return ret;
 }
