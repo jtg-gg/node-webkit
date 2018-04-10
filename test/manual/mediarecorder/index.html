@@ -70,10 +70,8 @@
       var blob = new Blob(recordedBlobs);
       var video = document.querySelector('video');
       video.muted = false;
-      if (mimeType != "video/x-flv") {
-        video.src = window.URL.createObjectURL(blob);
-        video.srcObject = null;
-      }
+      video.src = window.URL.createObjectURL(blob);
+      video.srcObject = null;
       var videolink = document.getElementById("videolink");
       videolink.href = window.URL.createObjectURL(blob);
       videolink.download = mimeType;
