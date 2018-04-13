@@ -246,11 +246,7 @@ extern "C" {
       }
       
       avformat_network_init();
-      const AVIOInterruptCB int_cb = { FFMpegMediaRecorder::decode_interrupt_cb, this };
-      assert(interrupt_timer_.is_null());
-      interrupt_timer_ = base::TimeTicks::Now();
-      avio_open2(&oc->pb, outputs[0].c_str(), AVIO_FLAG_WRITE, &int_cb, &muxerOpt_);
-      interrupt_timer_ = base::TimeTicks::FromInternalValue(0);
+      avio_open2(&oc->pb, outputs[0].c_str(), AVIO_FLAG_WRITE, NULL, &muxerOpt_);
       if (oc->pb == 0) {
         FFMPEG_MEDIA_RECORDER_ERROR("avio_open2 fails")
         return -1;
@@ -266,10 +262,7 @@ extern "C" {
           FFMPEG_MEDIA_RECORDER_ERROR("avformat_alloc_output_context2 fails");
           return -1;
         }
-        assert(interrupt_timer_.is_null());
-        interrupt_timer_ = base::TimeTicks::Now();
-        avio_open2(&oc2.back()->pb, fileName, AVIO_FLAG_WRITE, &int_cb, &muxerOpt_);
-        interrupt_timer_ = base::TimeTicks::FromInternalValue(0);
+        avio_open2(&oc2.back()->pb, fileName, AVIO_FLAG_WRITE, NULL, &muxerOpt_);
         if (oc2.back()->pb == 0) {
           FFMPEG_MEDIA_RECORDER_ERROR("avio_open2 fails")
           return -1;
@@ -285,14 +278,6 @@ extern "C" {
     event_cb->Run("NWObjectMediaRecorderData",
                   base::Value::CreateWithCopiedBuffer((char*)data, size).release());
     return size;
-  }
-
-  int FFMpegMediaRecorder::decode_interrupt_cb(void *ctx) {
-    FFMpegMediaRecorder* this_ = reinterpret_cast<FFMpegMediaRecorder*>(ctx);
-    if(this_->interrupt_timer_.is_null())
-      return 0;
-    double elapsed = (base::TimeTicks::Now() - this_->interrupt_timer_).InMillisecondsF();
-    return (3000.0 - elapsed) > 0 ? 0 : -1;
   }
   
   int FFMpegMediaRecorder::InitFile() {

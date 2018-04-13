@@ -258,7 +258,7 @@ namespace nw {
   }
   
   void MediaRecorder::Call(const v8::FunctionCallbackInfo<v8::Value>& args) {
-        v8::Isolate* isolate = args.GetIsolate();
+    v8::Isolate* isolate = args.GetIsolate();
 
     int object_id = args[0]->ToInt32(isolate)->Value();
     std::string call = *v8::String::Utf8Value(args[1]);

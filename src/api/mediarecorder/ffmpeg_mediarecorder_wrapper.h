@@ -67,9 +67,6 @@ private:
   EventCB event_cb_;
 
   int InitFile();
-  
-  base::TimeTicks interrupt_timer_;
-  static int decode_interrupt_cb(void *ctx);
 
 public:
   FFMpegMediaRecorder();

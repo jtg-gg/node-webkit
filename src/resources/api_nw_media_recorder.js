@@ -203,7 +203,7 @@ MediaRecorder.prototype.start = function (param1, param2) {
     muxerParams += "page_duration="+timeslice*1000;
   } else if (this.mimeType == "video/x-flv") {
     videoParams += "preset=ultrafast;threads=1;slices=1;strict=2";
-    muxerParams += "frag_duration="+timeslice*1000;
+    muxerParams += "frag_duration="+timeslice*1000+";timeout=5000000";
     if (!options.hasOwnProperty('frameRate')) {
       options.frameRate = 30;
       videoParams += ";g="+options.frameRate*2;
