@@ -1,5 +1,5 @@
-// Copyright (c) 2015 Jefry Tedjokusumo
-// Copyright (c) 2015 The Chromium Authors
+// Copyright (c) 2018 Jefry Tedjokusumo
+// Copyright (c) 2018 The Chromium Authors
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -45,9 +45,7 @@ public:
 
 private:
   OutputStream video_st, audio_st;
-  const AVOutputFormat *fmt;
-  AVFormatContext *oc;
-  std::vector<AVFormatContext*> oc2;
+  std::vector<AVFormatContext*> ocs;
   bool have_video, have_audio, audio_only, video_only;
   int forceAudioSync, outTolerance;
   AVDictionary *audioOpt_, *videoOpt_, *muxerOpt_;
@@ -67,6 +65,7 @@ private:
   EventCB event_cb_;
 
   int InitFile();
+  void write_frames(const std::vector<AVFormatContext*>& fmt_ctx, const AVRational *time_base, AVStream *st, AVPacket *pkt);
 
 public:
   FFMpegMediaRecorder();

@@ -1,5 +1,5 @@
-// Copyright (c) 2015 Jefry Tedjokusumo
-// Copyright (c) 2015 The Chromium Authors
+// Copyright (c) 2018 Jefry Tedjokusumo
+// Copyright (c) 2018 The Chromium Authors
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -71,24 +71,19 @@ static void log_packet(const AVFormatContext *fmt_ctx, const AVPacket *pkt)
 }
 #endif
 
-int write_frame(AVFormatContext *fmt_ctx[], const AVRational *time_base, AVStream *st, AVPacket *pkt)
+int write_frame(AVFormatContext *fmt_ctx, const AVRational *time_base, AVStream *st, AVPacket *pkt)
 {
-  AVFormatContext* ctx = *fmt_ctx;
   const int st_index = st->index;
-  int ret = 0;
-  do {
-    AVPacket* clone = av_packet_clone(pkt);
-    /* rescale output packet timestamp values from codec to stream timebase */
-    av_packet_rescale_ts(clone, *time_base, ctx->streams[st_index]->time_base);
-    clone->stream_index = st_index;
+  AVPacket* clone = av_packet_clone(pkt);
+  /* rescale output packet timestamp values from codec to stream timebase */
+  av_packet_rescale_ts(clone, *time_base, fmt_ctx->streams[st_index]->time_base);
+  clone->stream_index = st_index;
 #ifdef VERBOSE_DEBUG
-    log_packet(fmt_ctx, clone);
+  log_packet(fmt_ctx, clone);
 #endif
-    /* Write the compressed frame to the media file. */
-    ret += av_interleaved_write_frame(ctx, clone);
-    av_packet_free(&clone);
-    ctx = *(++fmt_ctx);
-  } while (ctx != NULL);
+  /* Write the compressed frame to the media file. */
+  int ret = av_interleaved_write_frame(fmt_ctx, clone);
+  av_packet_free(&clone);
   return ret;
 }
 
@@ -215,7 +210,7 @@ static AVFrame *alloc_audio_frame(enum AVSampleFormat sample_fmt,
   return frame;
 }
 
-int open_audio(AVFormatContext *oc, AVCodec *codec, OutputStream *ost, const int samplerate, const int channels, const int frame_size, AVDictionary **opt)
+int open_audio(AVCodec *codec, OutputStream *ost, const int samplerate, const int channels, const int frame_size, AVDictionary **opt)
 {
   AVCodecContext *c;
   int nb_samples;
@@ -398,7 +393,7 @@ AVFrame *alloc_picture(enum AVPixelFormat pix_fmt, int width, int height)
   return picture;
 }
 
-int open_video(AVFormatContext *oc, AVCodec *codec, OutputStream *ost, AVDictionary **opt)
+int open_video(AVCodec *codec, OutputStream *ost, AVDictionary **opt)
 {
   int ret;
   AVCodecContext *c = ost->codec;
@@ -429,7 +424,7 @@ int open_video(AVFormatContext *oc, AVCodec *codec, OutputStream *ost, AVDiction
 * encode one video frame and send it to the muxer
 * return 1 when encoding is finished, 0 otherwise
 */
-int write_video_frame(AVFormatContext *oc, OutputStream *ost, AVFrame *frame, AVPacket* pkt)
+int write_video_frame(OutputStream *ost, AVFrame *frame, AVPacket* pkt)
 {
   int ret = -1;
   AVCodecContext *c;
@@ -451,7 +446,7 @@ int write_video_frame(AVFormatContext *oc, OutputStream *ost, AVFrame *frame, AV
   return !got_packet;
 }
 
-void close_stream(AVFormatContext *oc, OutputStream *ost)
+void close_stream(OutputStream *ost)
 {
   avcodec_free_context(&ost->codec);
   av_frame_free(&ost->frame);

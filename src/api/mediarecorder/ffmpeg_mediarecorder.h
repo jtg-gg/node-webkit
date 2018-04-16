@@ -1,5 +1,5 @@
-// Copyright (c) 2015 Jefry Tedjokusumo
-// Copyright (c) 2015 The Chromium Authors
+// Copyright (c) 2018 Jefry Tedjokusumo
+// Copyright (c) 2018 The Chromium Authors
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -55,9 +55,9 @@ extern "C" {
     short width, short height, int AVPixelFormat  //video
     );
 
-  int open_audio(AVFormatContext *oc, AVCodec *codec, OutputStream *ost, const int samplerate, const int channels, const int frame_size, AVDictionary **opt);
-  int open_video(AVFormatContext *oc, AVCodec *codec, OutputStream *ost, AVDictionary **opt);
-  void close_stream(AVFormatContext *oc, OutputStream *ost);
+  int open_audio(AVCodec *codec, OutputStream *ost, const int samplerate, const int channels, const int frame_size, AVDictionary **opt);
+  int open_video(AVCodec *codec, OutputStream *ost, AVDictionary **opt);
+  void close_stream(OutputStream *ost);
 
   AVFrame *alloc_picture(int AVPixelFormat, int width, int height);
 
@@ -65,7 +65,7 @@ extern "C" {
   * encode one video frame and send it to the muxer
   * return 1 when encoding is finished, 0 otherwise
   */
-  int write_video_frame(AVFormatContext *oc, OutputStream *ost, AVFrame *frame, AVPacket* pkt);
+  int write_video_frame(OutputStream *ost, AVFrame *frame, AVPacket* pkt);
 
   /*
   * encode one audio frame (tmp_frame) until it returns a packet
@@ -77,7 +77,7 @@ extern "C" {
   */
   int write_audio_frame(OutputStream *ost, AVPacket* pkt, int srcNumSamples);
 
-  int write_frame(AVFormatContext *fmt_ctx[], const AVRational *time_base, AVStream *st, AVPacket *pkt);
+  int write_frame(AVFormatContext *fmt_ctx, const AVRational *time_base, AVStream *st, AVPacket *pkt);
 
 #ifdef __cplusplus
 };
