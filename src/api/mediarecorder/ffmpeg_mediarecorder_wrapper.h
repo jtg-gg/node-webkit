@@ -46,6 +46,7 @@ public:
 private:
   OutputStream video_st, audio_st;
   std::vector<AVFormatContext*> ocs;
+  std::vector<bool> ocs_active;
   bool have_video, have_audio, audio_only, video_only;
   int forceAudioSync, outTolerance;
   AVDictionary *audioOpt_, *videoOpt_, *muxerOpt_;
@@ -65,7 +66,7 @@ private:
   EventCB event_cb_;
 
   int InitFile();
-  void write_frames(const std::vector<AVFormatContext*>& fmt_ctx, const AVRational *time_base, AVStream *st, AVPacket *pkt);
+  void write_frames(const AVRational *time_base, int st_index, AVPacket *pkt);
 
 public:
   FFMpegMediaRecorder();
@@ -80,6 +81,8 @@ public:
   
   bool UpdateAudio(const media::AudioBus& audio_bus,
     const base::TimeTicks& estimated_capture_time);
+
+  int ReOpen(const char* old_output, const char* new_output);
 
   int has_video() const { return have_video; }
   

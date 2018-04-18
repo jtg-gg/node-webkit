@@ -160,7 +160,7 @@ extern "C" {
     /* Now that all the parameters are set, we can open the
     * video codecs and allocate the necessary encode buffers. */
     if (have_video)
-      have_video = open_video(video_codec, &video_st, &videoOpt_) == 0;
+      have_video = open_video(oc1, video_codec, &video_st, &videoOpt_) == 0;
     
     if (have_video) {
       LOG(INFO) << "open_video success";
@@ -198,7 +198,7 @@ extern "C" {
     }
 
     if (have_audio)
-      have_audio = open_audio(audio_codec, &audio_st, samplerate, channels, frame_size, &audioOpt_) == 0;
+      have_audio = open_audio(oc1, audio_codec, &audio_st, samplerate, channels, frame_size, &audioOpt_) == 0;
 
     LOG_IF(INFO, have_audio) << "open_audio success, sample rate " << audio_st.codec->sample_rate;
     LOG_IF(ERROR, !have_audio) << "open_audio fails";
@@ -242,6 +242,7 @@ extern "C" {
         return ret;
       }
       ocs.push_back(oc1);
+      ocs_active.push_back(true);
       if (strcmp(oc1->oformat->extensions, "flv")==0) {
         oc1->oformat->audio_codec = AV_CODEC_ID_AAC;
         oc1->oformat->video_codec = AV_CODEC_ID_H264;
@@ -267,6 +268,7 @@ extern "C" {
           return ret;
         }
         ocs.push_back(oc);
+        ocs_active.push_back(true);
         if (strcmp(oc->oformat->extensions, "flv")==0) {
           oc->oformat->audio_codec = AV_CODEC_ID_AAC;
           oc->oformat->video_codec = AV_CODEC_ID_H264;
@@ -562,11 +564,82 @@ extern "C" {
     }
   }
   
-  void FFMpegMediaRecorder::write_frames(const std::vector<AVFormatContext*>& fmt_ctx, const AVRational *time_base, AVStream *st, AVPacket *pkt) {
-    for (auto* c : fmt_ctx) {
-      int ret = write_frame(c, time_base, st, pkt);
+  int FFMpegMediaRecorder::ReOpen(const char* old_output, const char* new_output) {
+    int old_idx = -1;
+    int ret = 0;
+    // search for the old output
+    for (unsigned int i=0; i<ocs.size(); i++) {
+      if (strcmp(ocs[i]->filename, old_output)==0) {
+        old_idx = i;
+        break;
+      }
+    }
+    if (old_idx < 0) {
+      FFMPEG_MEDIA_RECORDER_ERROR("old_output not found", -1, old_output)
+      return -1; //old_output not found
+    }
+    ocs_active[old_idx] = false;
+    AVFormatContext* old_c = ocs[old_idx];
+    AVFormatContext* oc = NULL;
+    
+    ret = avformat_alloc_output_context2(&oc, old_c->oformat, NULL, NULL);
+    if (!oc) {
+      FFMPEG_MEDIA_RECORDER_ERROR("avformat_alloc_output_context2 fails", ret, old_c->filename)
+      return ret;
+    }
+    if (strcmp(oc->oformat->extensions, "flv")==0) {
+      oc->oformat->audio_codec = AV_CODEC_ID_AAC;
+      oc->oformat->video_codec = AV_CODEC_ID_H264;
+    }
+    strcpy(oc->filename, new_output ? new_output : old_c->filename);
+    ret = avio_open2(&oc->pb, oc->filename, AVIO_FLAG_WRITE, NULL, &muxerOpt_);
+    if (oc->pb == 0) {
+      FFMPEG_MEDIA_RECORDER_ERROR("avio_open2 fails", ret, oc->filename);
+      avformat_free_context(oc);
+      return ret;
+    }
+    
+    for (unsigned int i=0; i<old_c->nb_streams; i++) {
+      AVStream *out_stream;
+      AVStream *in_stream = old_c->streams[i];
+      AVCodecParameters *in_codecpar = in_stream->codecpar;
+      
+      out_stream = avformat_new_stream(oc, NULL);
+      if (!out_stream) {
+        FFMPEG_MEDIA_RECORDER_ERROR("Failed allocating output stream", -1, oc->filename);
+        avformat_free_context(oc);
+        return -1;
+      }
+      
+      if ((ret = avcodec_parameters_copy(out_stream->codecpar, in_codecpar)) < 0) {
+        FFMPEG_MEDIA_RECORDER_ERROR("Failed to copy codec parameters", ret, oc->filename);
+        avformat_free_context(oc);
+        return ret;
+      }
+      out_stream->codecpar->codec_tag = 0;
+    }
+    if ((ret = avformat_write_header(oc, &muxerOpt_)) < 0) {
+      FFMPEG_MEDIA_RECORDER_ERROR("avformat_write_header fails", ret, oc->filename);
+      avformat_free_context(oc);
+      return ret;
+    }
+    av_write_trailer(old_c);
+    avio_close(old_c->pb);
+    avformat_free_context(old_c);
+
+    ocs[old_idx] = oc;
+    ocs_active[old_idx] = true;
+    return 0;
+  }
+
+  
+  void FFMpegMediaRecorder::write_frames(const AVRational *time_base, int st_index, AVPacket *pkt) {
+    for (unsigned int i=0; i<ocs.size(); i++) {
+      if (!ocs_active[i]) continue;
+      int ret = write_frame(ocs[i], time_base, st_index, pkt);
       if (ret < 0) {
-        FFMPEG_MEDIA_RECORDER_ERROR("WriteFrame Error", ret, c->filename);
+        ocs_active[i] = false;
+        FFMPEG_MEDIA_RECORDER_ERROR("WriteFrame Error", ret, ocs[i]->filename);
       }
     }
   }
@@ -576,7 +649,7 @@ extern "C" {
     base::AutoLock lock(lock_);
     PROFILE(_write_frame, &Lock_WriteFrame, 0);
     AVPacket* avPacket = pkt.get()->get();
-    write_frames(ocs, &ost->codec->time_base, ost->st, avPacket);
+    write_frames(&ost->codec->time_base, ost->st_index, avPacket);
     assert(avPacket->buf == NULL && avPacket->data == NULL && avPacket->size == 0);
   }
   
@@ -719,7 +792,7 @@ extern "C" {
         AVPacket pkt = { 0 };
         res = write_video_frame(&video_st, NULL, &pkt);
         if (res == 0) {
-          write_frames(ocs, &c->time_base, video_st.st, &pkt);
+          write_frames(&c->time_base, video_st.st_index, &pkt);
         }
       }
     }
@@ -731,7 +804,7 @@ extern "C" {
         AVPacket pkt = { 0 }; // data and size must be 0;
         res = write_audio_frame(&audio_st, &pkt, 0);
         if (res >= 0) {
-          write_frames(ocs, &c->time_base, audio_st.st, &pkt);
+          write_frames(&c->time_base, audio_st.st_index, &pkt);
         }
       } while (res > -2);
       
@@ -742,7 +815,7 @@ extern "C" {
         AVPacket pkt = { 0 }; // data and size must be 0;
         res = avcodec_receive_packet(c, &pkt) == 0;
         if (res) {
-          write_frames(ocs, &c->time_base, audio_st.st, &pkt);
+          write_frames(&c->time_base, audio_st.st_index, &pkt);
         }
       }
     }
@@ -785,6 +858,7 @@ extern "C" {
       avformat_free_context(c);
     }
     ocs.clear();
+    ocs_active.clear();
     
     event_cb_.Run("NWObjectMediaRecorderStop",
                   NULL);

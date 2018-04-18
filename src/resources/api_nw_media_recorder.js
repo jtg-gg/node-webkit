@@ -276,6 +276,13 @@ MediaRecorder.prototype.start = function (param1, param2) {
   if(res) privates(this).state = "recording";
 };
 
+MediaRecorder.prototype.reopen = function (old_output, new_output) {
+  if (this.state == "inactive")
+    throw new DOMException("InvalidStateError", "The MediaRecorder's state is " + this.state + ".");
+
+  return nwNative.MediaRecorderCall(this.id, "reopen", old_output, new_output);
+}
+
 MediaRecorder.prototype.stop = function () {
   if (this.state == "inactive")
     throw new DOMException("InvalidStateError", "The MediaRecorder's state is " + this.state + ".");

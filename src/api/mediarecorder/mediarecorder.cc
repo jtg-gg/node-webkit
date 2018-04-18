@@ -1,5 +1,5 @@
-// Copyright (c) 2015 Jefry Tedjokusumo
-// Copyright (c) 2015 The Chromium Authors
+// Copyright (c) 2018 Jefry Tedjokusumo
+// Copyright (c) 2018 The Chromium Authors
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -158,6 +158,10 @@ namespace nw {
       ffmpeg_.RequestData();
     }
 
+    int ReOpen(const char* old_output, const char* new_output) {
+      return ffmpeg_.ReOpen(old_output, new_output);
+    }
+
   private:
     void OnVideoFrame(
       const scoped_refptr<media::VideoFrame>& frame,
@@ -276,6 +280,11 @@ namespace nw {
       i->second->Resume();
     } else if (call.compare("requestData") == 0) {
       i->second->RequestData();
+    } else if (call.compare("reopen") == 0) {
+      std::string old_output = *v8::String::Utf8Value(args[2]);
+      std::string new_output = *v8::String::Utf8Value(args[3]);
+      int res = i->second->ReOpen(old_output.c_str(), new_output.c_str());
+      args.GetReturnValue().Set(res);
     } else {
       args.GetReturnValue().Set(isolate->ThrowException(v8::Exception::Error(v8::String::NewFromUtf8(isolate,
         "MediaRecorder unknown function call"))));

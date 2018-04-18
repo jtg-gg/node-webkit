@@ -71,9 +71,8 @@ static void log_packet(const AVFormatContext *fmt_ctx, const AVPacket *pkt)
 }
 #endif
 
-int write_frame(AVFormatContext *fmt_ctx, const AVRational *time_base, AVStream *st, AVPacket *pkt)
+int write_frame(AVFormatContext *fmt_ctx, const AVRational *time_base, int st_index, AVPacket *pkt)
 {
-  const int st_index = st->index;
   AVPacket* clone = av_packet_clone(pkt);
   /* rescale output packet timestamp values from codec to stream timebase */
   av_packet_rescale_ts(clone, *time_base, fmt_ctx->streams[st_index]->time_base);
@@ -105,12 +104,13 @@ int add_stream(OutputStream *ost, AVFormatContext *oc,
     return -1;
   }
 
-  ost->st = avformat_new_stream(oc, NULL);
-  if (!ost->st) {
+  AVStream* st = avformat_new_stream(oc, NULL);
+  if (!st) {
     fprintf(stderr, "Could not allocate stream\n");
     return -1;
   }
-  ost->st->id = oc->nb_streams - 1;
+  st->id = oc->nb_streams - 1;
+  ost->st_index = st->index;
   
   ost->codec = avcodec_alloc_context3(*codec);
   c = ost->codec;
@@ -210,7 +210,7 @@ static AVFrame *alloc_audio_frame(enum AVSampleFormat sample_fmt,
   return frame;
 }
 
-int open_audio(AVCodec *codec, OutputStream *ost, const int samplerate, const int channels, const int frame_size, AVDictionary **opt)
+int open_audio(AVFormatContext *oc, AVCodec *codec, OutputStream *ost, const int samplerate, const int channels, const int frame_size, AVDictionary **opt)
 {
   AVCodecContext *c;
   int nb_samples;
@@ -226,7 +226,7 @@ int open_audio(AVCodec *codec, OutputStream *ost, const int samplerate, const in
   }
   
   c->time_base = (AVRational){ 1, c->sample_rate };  
-  ost->st->time_base = (AVRational){ 1, c->sample_rate };
+  oc->streams[ost->st_index]->time_base = (AVRational){ 1, c->sample_rate };
   
   if (c->codec->capabilities & AV_CODEC_CAP_VARIABLE_FRAME_SIZE)
     nb_samples = frame_size;
@@ -262,7 +262,7 @@ int open_audio(AVCodec *codec, OutputStream *ost, const int samplerate, const in
     return -1;
   }
 
-  avcodec_parameters_from_context(ost->st->codecpar, c);
+  avcodec_parameters_from_context(oc->streams[ost->st_index]->codecpar, c);
   return 0;
 }
 
@@ -393,7 +393,7 @@ AVFrame *alloc_picture(enum AVPixelFormat pix_fmt, int width, int height)
   return picture;
 }
 
-int open_video(AVCodec *codec, OutputStream *ost, AVDictionary **opt)
+int open_video(AVFormatContext *oc, AVCodec *codec, OutputStream *ost, AVDictionary **opt)
 {
   int ret;
   AVCodecContext *c = ost->codec;
@@ -412,10 +412,10 @@ int open_video(AVCodec *codec, OutputStream *ost, AVDictionary **opt)
     return -1;
   }
   
-  ost->st->time_base = c->time_base;
+  oc->streams[ost->st_index]->time_base = c->time_base;
   ost->tmp_frame = NULL;
 
-  avcodec_parameters_from_context(ost->st->codecpar, c);
+  avcodec_parameters_from_context(oc->streams[ost->st_index]->codecpar, c);
 
   return 0;
 }

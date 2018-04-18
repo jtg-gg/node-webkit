@@ -36,7 +36,7 @@ extern "C" {
 
   // a wrapper around a single output AVStream
   typedef struct OutputStream {
-    AVStream *st;
+    int st_index;
     AVCodecContext *codec;
 
     AVFrame *frame;
@@ -55,8 +55,8 @@ extern "C" {
     short width, short height, int AVPixelFormat  //video
     );
 
-  int open_audio(AVCodec *codec, OutputStream *ost, const int samplerate, const int channels, const int frame_size, AVDictionary **opt);
-  int open_video(AVCodec *codec, OutputStream *ost, AVDictionary **opt);
+  int open_audio(AVFormatContext *oc, AVCodec *codec, OutputStream *ost, const int samplerate, const int channels, const int frame_size, AVDictionary **opt);
+  int open_video(AVFormatContext *oc, AVCodec *codec, OutputStream *ost, AVDictionary **opt);
   void close_stream(OutputStream *ost);
 
   AVFrame *alloc_picture(int AVPixelFormat, int width, int height);
@@ -77,7 +77,7 @@ extern "C" {
   */
   int write_audio_frame(OutputStream *ost, AVPacket* pkt, int srcNumSamples);
 
-  int write_frame(AVFormatContext *fmt_ctx, const AVRational *time_base, AVStream *st, AVPacket *pkt);
+  int write_frame(AVFormatContext *fmt_ctx, const AVRational *time_base, int st_index, AVPacket *pkt);
 
 #ifdef __cplusplus
 };
