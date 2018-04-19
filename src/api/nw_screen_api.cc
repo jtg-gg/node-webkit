@@ -16,11 +16,10 @@
 #include "chrome/browser/media/webrtc/media_capture_devices_dispatcher.h"
 #include "chrome/browser/media/webrtc/native_desktop_media_list.h"
 #include "content/public/browser/render_frame_host.h"
+#include "content/public/browser/desktop_capture.h"
 #include "content/public/browser/desktop_streams_registry.h"
 #include "content/public/browser/render_process_host.h"
 #include "content/public/browser/web_contents.h"
-#include "third_party/webrtc/modules/desktop_capture/desktop_capture_options.h"
-#include "third_party/webrtc/modules/desktop_capture/desktop_capturer.h"
 #include "ui/gfx/codec/png_codec.h"
 #include "ui/gfx/image/image.h"
 #include "ui/gfx/image/image_skia.h"
@@ -35,7 +34,7 @@ namespace extensions {
     static NwDesktopCaptureMonitor* GetInstance();
 
     NwDesktopCaptureMonitor();
-    void Start(bool screens, bool windows);
+    void Start(bool screens, bool windows, int thumbnail_width, int thumbnail_height);
     void Stop();
     bool IsStarted();
 
@@ -194,21 +193,19 @@ namespace extensions {
       : started_(false) {
   }
 
-  void NwDesktopCaptureMonitor::Start(bool screens, bool windows) {
+  void NwDesktopCaptureMonitor::Start(bool screens, bool windows, int thumbnail_width, int thumbnail_height) {
     if (started_) {
       return;
     }
 
     started_ = true;
 
-    webrtc::DesktopCaptureOptions options = webrtc::DesktopCaptureOptions::CreateDefault();
-    options.set_disable_effects(false);
-
     if (screens) {
       std::unique_ptr<DesktopMediaList> screen_media_list =
         std::make_unique<NativeDesktopMediaList>(
           content::DesktopMediaID::TYPE_SCREEN,
-          webrtc::DesktopCapturer::CreateScreenCapturer(options));
+          content::desktop_capture::CreateScreenCapturer());
+      screen_media_list->SetThumbnailSize(gfx::Size(thumbnail_width, thumbnail_height));
       media_list_.push_back(std::move(screen_media_list));
     }
 
@@ -216,7 +213,8 @@ namespace extensions {
       std::unique_ptr<DesktopMediaList> window_media_list =
         std::make_unique<NativeDesktopMediaList>(
           content::DesktopMediaID::TYPE_WINDOW,
-          webrtc::DesktopCapturer::CreateWindowCapturer(options));
+          content::desktop_capture::CreateWindowCapturer());
+      window_media_list->SetThumbnailSize(gfx::Size(thumbnail_width, thumbnail_height));
       media_list_.push_back(std::move(window_media_list));
     }
 
@@ -287,7 +285,8 @@ void NwDesktopCaptureMonitor::OnSourceAdded(DesktopMediaList* list, int index) {
   }
 
 void NwDesktopCaptureMonitor::OnSourceRemoved(DesktopMediaList* list, int index) {
-    std::unique_ptr<base::ListValue> args = nwapi::nw__screen::OnSourceRemoved::Create(index);
+    DesktopMediaList::Source src = list->GetSource(index);
+    std::unique_ptr<base::ListValue> args = nwapi::nw__screen::OnSourceRemoved::Create(src.id.ToString());
     DispatchEvent(
       events::HistogramValue::UNKNOWN, 
       nwapi::nw__screen::OnSourceRemoved::kEventName,
@@ -342,9 +341,15 @@ void NwDesktopCaptureMonitor::OnSourceThumbnailChanged(DesktopMediaList* list, i
 
   bool NwScreenStartMonitorFunction::RunNWSync(base::ListValue* response, std::string* error) {
     bool screens, windows;
+    int width  = 150;
+    int height = 150;
     EXTENSION_FUNCTION_VALIDATE(args_->GetBoolean(0, &screens));
     EXTENSION_FUNCTION_VALIDATE(args_->GetBoolean(1, &windows));
-    NwDesktopCaptureMonitor::GetInstance()->Start(screens, windows);
+    args_->GetInteger(2, &width);
+    args_->GetInteger(3, &height);
+    width  = (width  <= 0) ? 150 : width;
+    height = (height <= 0) ? 150 : height;
+    NwDesktopCaptureMonitor::GetInstance()->Start(screens, windows, width, height);
     return true;
   }
 
