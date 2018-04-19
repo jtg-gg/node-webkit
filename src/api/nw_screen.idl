@@ -32,7 +32,7 @@ namespace nw.Screen {
     static void onDisplayBoundsChanged(Display display, long metrics);
 
     static void onSourceAdded(DOMString id, DOMString string, long order, DOMString type, optional boolean primary);
-    static void onSourceRemoved(long old_order);
+    static void onSourceRemoved(DOMString id);
     static void onSourceOrderChanged(DOMString id, long new_order, long old_order);
     static void onSourceNameChanged(DOMString id, DOMString name);
     static void onSourceThumbnailChanged(DOMString id, DOMString thumbnail);
