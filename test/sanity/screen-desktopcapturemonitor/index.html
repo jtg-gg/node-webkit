@@ -15,15 +15,38 @@
 
   function startMonitor() {
     try{
-
+      var winId = null;
       nw.Screen.Init();
       Object.keys(monitorResult).forEach(function(eventName) {
-        nw.Screen.DesktopCaptureMonitor.once(eventName, function() {
-          monitorResult[eventName] = true;
-          writeSuccess(eventName);
+        //once will only give you 1 event
+        nw.Screen.DesktopCaptureMonitor.once(eventName, function(id, param2) {
+          console.log(id + " " + eventName);
+          if (eventName == "namechanged") {
+            winId = id; // save the winId of the popup window
+            writeSuccess(eventName);
+			monitorResult[eventName] = true;
+          } else if (eventName == "removed") {
+            // id here is the popup window
+            if(winId==id) {
+              writeSuccess(eventName);
+			  monitorResult[eventName] = true;
+			}
+          } else if (eventName == "thumbnailchanged") { 
+            var i = new Image(); 
+            i.onload = function(){
+			  if (i.width == 300 || i.height == 300) {
+			    writeSuccess(eventName);
+				monitorResult[eventName] = true;
+			  }
+            };
+            i.src = "data:image/png;base64,"+param2; 
+		  } else {
+            writeSuccess(eventName);
+			monitorResult[eventName] = true;
+          }
         })
       });
-      nw.Screen.DesktopCaptureMonitor.start(false, true);
+      nw.Screen.DesktopCaptureMonitor.start(false, true, 300, 300);
     } catch(e) {
       writeFailure(e);
     }
