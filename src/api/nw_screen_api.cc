@@ -287,7 +287,8 @@ void NwDesktopCaptureMonitor::OnSourceAdded(DesktopMediaList* list, int index) {
   }
 
 void NwDesktopCaptureMonitor::OnSourceRemoved(DesktopMediaList* list, int index) {
-    std::unique_ptr<base::ListValue> args = nwapi::nw__screen::OnSourceRemoved::Create(index);
+    DesktopMediaList::Source src = list->GetSource(index);
+    std::unique_ptr<base::ListValue> args = nwapi::nw__screen::OnSourceRemoved::Create(src.id.ToString());
     DispatchEvent(
       events::HistogramValue::UNKNOWN, 
       nwapi::nw__screen::OnSourceRemoved::kEventName,
