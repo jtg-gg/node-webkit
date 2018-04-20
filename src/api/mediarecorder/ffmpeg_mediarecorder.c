@@ -73,16 +73,14 @@ static void log_packet(const AVFormatContext *fmt_ctx, const AVPacket *pkt)
 
 int write_frame(AVFormatContext *fmt_ctx, const AVRational *time_base, int st_index, AVPacket *pkt)
 {
-  AVPacket* clone = av_packet_clone(pkt);
   /* rescale output packet timestamp values from codec to stream timebase */
-  av_packet_rescale_ts(clone, *time_base, fmt_ctx->streams[st_index]->time_base);
-  clone->stream_index = st_index;
+  av_packet_rescale_ts(pkt, *time_base, fmt_ctx->streams[st_index]->time_base);
+  pkt->stream_index = st_index;
 #ifdef VERBOSE_DEBUG
-  log_packet(fmt_ctx, clone);
+  log_packet(fmt_ctx, pkt);
 #endif
   /* Write the compressed frame to the media file. */
-  int ret = av_interleaved_write_frame(fmt_ctx, clone);
-  av_packet_free(&clone);
+  int ret = av_interleaved_write_frame(fmt_ctx, pkt);
   return ret;
 }
 

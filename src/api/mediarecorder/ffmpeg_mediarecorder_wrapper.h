@@ -44,9 +44,24 @@ public:
   typedef base::Callback<void(const std::string event, base::Value* arg)> EventCB;
 
 private:
+  struct OutputContext {
+    AVFormatContext* fc;
+    bool active;
+    bool saveOffset[2];
+    int64_t pts_offset[2];
+    int64_t dts_offset[2];
+    OutputContext(AVFormatContext* fc) {
+      this->fc = fc;
+      active = true;
+      for (int i=0; i<2; i++) {
+        saveOffset[i] = false;
+        pts_offset[i] = 0;
+        dts_offset[i] = 0;
+      }
+    }
+  };
   OutputStream video_st, audio_st;
-  std::vector<AVFormatContext*> ocs;
-  std::vector<bool> ocs_active;
+  std::vector<OutputContext> ocs;
   bool have_video, have_audio, audio_only, video_only;
   int forceAudioSync, outTolerance;
   AVDictionary *audioOpt_, *videoOpt_, *muxerOpt_;

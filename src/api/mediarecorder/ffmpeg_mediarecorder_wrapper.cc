@@ -147,7 +147,7 @@ extern "C" {
     
     /* Add the video streams using the default format codecs
     * and initialize the codecs. */
-    AVFormatContext* oc1 = ocs.front();
+    AVFormatContext* oc1 = ocs.front().fc;
     if (oc1->oformat->video_codec != AV_CODEC_ID_NONE) {
       if (add_stream(&video_st, oc1, &video_codec,
         oc1->oformat->video_codec, bitrate, -1, -1, width, height, ::VideoPixelFormatToAVPixelFormat(videoFormat)) == 0) {
@@ -187,7 +187,7 @@ extern "C" {
     }
     target_rate = target_rate ? target_rate : samplerate;
 
-    AVFormatContext* oc1 = ocs.front();
+    AVFormatContext* oc1 = ocs.front().fc;
     if (oc1->oformat->audio_codec != AV_CODEC_ID_NONE) {
       if (int ret = add_stream(&audio_st, oc1, &audio_codec,
         oc1->oformat->audio_codec, -1, target_rate, channels, -1, -1, -1) == 0) {
@@ -241,8 +241,7 @@ extern "C" {
         FFMPEG_MEDIA_RECORDER_ERROR("avformat_alloc_output_context2 fails", ret, oc1->filename);
         return ret;
       }
-      ocs.push_back(oc1);
-      ocs_active.push_back(true);
+      ocs.push_back(OutputContext(oc1));
       if (strcmp(oc1->oformat->extensions, "flv")==0) {
         oc1->oformat->audio_codec = AV_CODEC_ID_AAC;
         oc1->oformat->video_codec = AV_CODEC_ID_H264;
@@ -267,8 +266,7 @@ extern "C" {
           FFMPEG_MEDIA_RECORDER_ERROR("avformat_alloc_output_context2 fails", ret, fileName)
           return ret;
         }
-        ocs.push_back(oc);
-        ocs_active.push_back(true);
+        ocs.push_back(OutputContext(oc));
         if (strcmp(oc->oformat->extensions, "flv")==0) {
           oc->oformat->audio_codec = AV_CODEC_ID_AAC;
           oc->oformat->video_codec = AV_CODEC_ID_H264;
@@ -293,7 +291,7 @@ extern "C" {
   }
   
   int FFMpegMediaRecorder::InitFile() {
-    AVFormatContext* oc1 = ocs.front();
+    AVFormatContext* oc1 = ocs.front().fc;
     /* open the output file, if needed */
     if (!(oc1->oformat->flags & AVFMT_NOFILE)) {
       uint8_t* buffer = NULL;
@@ -309,8 +307,8 @@ extern "C" {
         av_free(buffer);
 
       for (unsigned int j=0; j<ocs.size(); j++) {
-        if (ocs[j]->pb == NULL) {
-          FFMPEG_MEDIA_RECORDER_ERROR("avio_alloc_context fails", -1, ocs[j]->filename)
+        if (ocs[j].fc->pb == NULL) {
+          FFMPEG_MEDIA_RECORDER_ERROR("avio_alloc_context fails", -1, ocs[j].fc->filename)
           return -1;
         }
       }
@@ -330,20 +328,20 @@ extern "C" {
         AVStream *in_stream = oc1->streams[i];
         AVCodecParameters *in_codecpar = in_stream->codecpar;
         
-        out_stream = avformat_new_stream(ocs[j], NULL);
+        out_stream = avformat_new_stream(ocs[j].fc, NULL);
         if (!out_stream) {
-          FFMPEG_MEDIA_RECORDER_ERROR("Failed allocating output stream", -1, ocs[j]->filename);
+          FFMPEG_MEDIA_RECORDER_ERROR("Failed allocating output stream", -1, ocs[j].fc->filename);
           return -1;
         }
         
         if ((ret = avcodec_parameters_copy(out_stream->codecpar, in_codecpar)) < 0) {
-          FFMPEG_MEDIA_RECORDER_ERROR("Failed to copy codec parameters", ret, ocs[j]->filename);
+          FFMPEG_MEDIA_RECORDER_ERROR("Failed to copy codec parameters", ret, ocs[j].fc->filename);
           return ret;
         }
         out_stream->codecpar->codec_tag = 0;
       }
-      if ((ret = avformat_write_header(ocs[j], &muxerOpt_)) < 0) {
-        FFMPEG_MEDIA_RECORDER_ERROR("avformat_write_header fails", ret, ocs[j]->filename);
+      if ((ret = avformat_write_header(ocs[j].fc, &muxerOpt_)) < 0) {
+        FFMPEG_MEDIA_RECORDER_ERROR("avformat_write_header fails", ret, ocs[j].fc->filename);
         return ret;
       }
     }
@@ -569,7 +567,7 @@ extern "C" {
     int ret = 0;
     // search for the old output
     for (unsigned int i=0; i<ocs.size(); i++) {
-      if (strcmp(ocs[i]->filename, old_output)==0) {
+      if (strcmp(ocs[i].fc->filename, old_output)==0) {
         old_idx = i;
         break;
       }
@@ -578,8 +576,8 @@ extern "C" {
       FFMPEG_MEDIA_RECORDER_ERROR("old_output not found", -1, old_output)
       return -1; //old_output not found
     }
-    ocs_active[old_idx] = false;
-    AVFormatContext* old_c = ocs[old_idx];
+    ocs[old_idx].active = false;
+    AVFormatContext* old_c = ocs[old_idx].fc;
     AVFormatContext* oc = NULL;
     
     ret = avformat_alloc_output_context2(&oc, old_c->oformat, NULL, NULL);
@@ -627,19 +625,33 @@ extern "C" {
     avio_close(old_c->pb);
     avformat_free_context(old_c);
 
-    ocs[old_idx] = oc;
-    ocs_active[old_idx] = true;
+    ocs[old_idx].fc = oc;
+    ocs[old_idx].active = true;
+    if (strcmp(oc->oformat->extensions, "mp4")==0) {
+      ocs[old_idx].saveOffset[0] = true;
+      ocs[old_idx].saveOffset[1] = true;
+    }
     return 0;
   }
 
   
   void FFMpegMediaRecorder::write_frames(const AVRational *time_base, int st_index, AVPacket *pkt) {
     for (unsigned int i=0; i<ocs.size(); i++) {
-      if (!ocs_active[i]) continue;
-      int ret = write_frame(ocs[i], time_base, st_index, pkt);
+      if (!ocs[i].active) continue;
+      AVPacket* clone = av_packet_clone(pkt);
+      assert(st_index>=0 && st_index<=1);
+      if (ocs[i].saveOffset[st_index]) {
+        ocs[i].pts_offset[st_index] = pkt->pts;
+        ocs[i].dts_offset[st_index] = pkt->dts;
+        ocs[i].saveOffset[st_index] = false;
+      }
+      clone->pts -= ocs[i].pts_offset[st_index];
+      clone->dts -= ocs[i].dts_offset[st_index];
+      int ret = write_frame(ocs[i].fc, time_base, st_index, clone);
+      av_packet_free(&clone);
       if (ret < 0) {
-        ocs_active[i] = false;
-        FFMPEG_MEDIA_RECORDER_ERROR("WriteFrame Error", ret, ocs[i]->filename);
+        ocs[i].active = false;
+        FFMPEG_MEDIA_RECORDER_ERROR("WriteFrame Error", ret, ocs[i].fc->filename);
       }
     }
   }
@@ -656,7 +668,7 @@ extern "C" {
   void FFMpegMediaRecorder::RequestData(bool sendToThread) {
     if(!sendToThread) {
       base::AutoLock lock(lock_);
-      av_write_frame(ocs.front(), NULL);
+      av_write_frame(ocs.front().fc, NULL);
     }
     else {
       base::SingleThreadTaskRunner* tr = worker_thread_ ? worker_thread_->task_runner().get() : NULL;
@@ -828,8 +840,8 @@ extern "C" {
     * av_write_trailer() may try to use memory that was freed on
     * av_codec_close(). */
     if (fileReady_) {
-      for (auto *c : ocs) {
-        av_write_trailer(c);
+      for (auto c : ocs) {
+        av_write_trailer(c.fc);
       }
     }
 
@@ -839,11 +851,11 @@ extern "C" {
     if (have_audio)
       close_stream(&audio_st);
 
-    AVFormatContext* oc1 = ocs.front();
+    AVFormatContext* oc1 = ocs.front().fc;
     if (!(oc1->oformat->flags & AVFMT_NOFILE)) {
       if (!output_.empty()) {
-        for (auto *c : ocs) {
-          avio_close(c->pb);
+        for (auto c : ocs) {
+          avio_close(c.fc->pb);
         }
         avformat_network_deinit();
         output_.clear();
@@ -854,11 +866,10 @@ extern "C" {
     }
 
     /* free the stream */
-    for (auto *c : ocs) {
-      avformat_free_context(c);
+    for (auto c : ocs) {
+      avformat_free_context(c.fc);
     }
     ocs.clear();
-    ocs_active.clear();
     
     event_cb_.Run("NWObjectMediaRecorderStop",
                   NULL);
