@@ -16,10 +16,10 @@
   </select>
   <input type="checkbox" id="windowToFront">windowToFront<br>
   <br>
-  videoParams: <input type="text" size=100 id="videoParams" value="preset=ultrafast;//tune=zerolatency;//threads=1;video_size=1280x720;b=650000"><br>
+  videoParams: <input type="text" size=100 id="videoParams" value="preset=ultrafast;//tune=zerolatency;//threads=1;video_size=640x360;b=500000"><br>
   audioParams: <input type="text" size=100 id="audioParams" value="ar=44100;ab=96000"><br>
   muxerParams: <input type="text" size=100 id="muxerParams" value="frag_duration=1000000;cluster_time_limit=1000;page_duration=1000000"><br>
-  RTMP: <input type="text" size=100 id="rtmpAddress" value="rtmp://a.rtmp.youtube.com/live2/yourkey"><br>
+  outputs    : <input type="text" size=100 id="outputs" value="rtmp://localhost:1935/live/myStream1;video.mp4"><br>
   <ol>
     <li><button onclick="usermedia(false, true)">mic </button></li>
     <li><button onclick="usermedia({mandatory:{}, optional:[{minWidth: 1280},{minHeight: 720}]}, true)">webcam + mic </button></li>
@@ -28,12 +28,15 @@
     <li><button onclick="screen_cap(false, true)">tab capture + system</button></li>
     <li><button onclick="screen_cap(false)">screen capture + system</button></li>
     <li><button onclick="usermedia('canvas', true, true)">canvas + mic </button></li>
+    <li><button onclick="streamRecord.reopen('video.mp4','video2.mp4')">Reopen api</button></li>
+    <li><button onclick="runRTMP()">HTML5 RTMP</button></li>
   </ol>
   <canvas id="myCanvas" width="640" height="360" style="border:1px solid #FF0000;">
   </canvas>
   <h4> check for audio/video quality and sync</h4>
   <p id="output"></p>
-  <video autoplay controls></video><br>
+  <video width="640" autoplay controls></video><br>
+  <video width="640" id="video2" autoplay controls></video><br>
   <a id="videolink" download>Download Video</a>
   <script>
     var streamRecord = null;
@@ -180,7 +183,7 @@
                                   videoParams:document.getElementById('videoParams').value,
                                   audioParams:document.getElementById('audioParams').value,
                                   muxerParams:document.getElementById('muxerParams').value,
-                                  output: formatIndex==5 ? document.getElementById('rtmpAddress').value : "",
+                                  output: formatIndex==5 ? document.getElementById('outputs').value : "",
                                   loglevel:56
                            });
     }
@@ -223,6 +226,24 @@
         usermedia(video_cons, audio_cons, mic);
       });
   }
+
+  var video2 = document.getElementById('video2');
+  video2.addEventListener('error', function(event) { log(event.path[0].error.message) }, true);
+
+  function runRTMP() {
+    video2.src = document.getElementById('outputs').value.split(";")[0];
+  }
+  
+  const { fork } = require('child_process');
+  const forked = fork('rtmp-server.js');
+  forked.on('message', (msg) => {
+    if(typeof msg ==='object')
+      log(JSON.stringify(msg));
+    console.log(msg);
+  });
+  process.on('exit',    function(){forked.kill('SIGINT');});
+  process.on('SIGTERM', function(){forked.kill('SIGINT');});
+  process.on('SIGINT',  function(){forked.kill('SIGINT');});
   </script>
 </body>
 </html>
