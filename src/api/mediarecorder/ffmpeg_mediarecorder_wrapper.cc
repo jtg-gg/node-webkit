@@ -788,7 +788,10 @@ extern "C" {
 #ifdef MEMORY_PROFILING
     LOG(INFO) << "FFMpegAVPacket before stop: " << FFMpegAVPacket::object_counter_;
 #endif
-    if (worker_thread_) worker_thread_->Stop();
+    if (worker_thread_) {
+      worker_thread_->Stop();
+      worker_thread_.reset();
+    }
 #ifdef MEMORY_PROFILING
     LOG(INFO) << "FFMpegAVPacket after  stop: " << FFMpegAVPacket::object_counter_ << ", Max object: " << FFMpegAVPacket::max_object_;
 #endif
