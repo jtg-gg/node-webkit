@@ -63,6 +63,7 @@ extern "C" {
     AVPacket packet_;
     friend class base::RefCountedThreadSafe<FFMpegAVPacket>;
     ~FFMpegAVPacket(){
+      av_packet_unref(&packet_);
 #ifdef MEMORY_PROFILING
       object_counter_--;
 #endif
