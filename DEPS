@@ -873,7 +873,9 @@ deps = {
   },
 
   'src/third_party/ffmpeg':
-    Var('chromium_git') + '/chromium/third_party/ffmpeg.git' + '@' + 'e02fc00c5da42ea5cdf2bf5b9bab93c323a1e698',
+    'https://github.com/jtg-gg/nwjs-ffmpeg.git@origin/dev39-m75',
+  'src/third_party/ffmpeg/libx264/x264_src':
+    'http://git.videolan.org/git/x264.git@e9a5903edf8ca59ef20e6f4894c196f135af735e',
 
   'src/third_party/flac':
     Var('chromium_git') + '/chromium/deps/flac.git' + '@' + 'af862024c8c8fa0ae07ced05e89013d881b00596',
@@ -1362,7 +1364,7 @@ deps = {
     Var('chromium_git') + '/external/khronosgroup/webgl.git' + '@' + '3f6583d3fee4ab71866ade794504a20eb6f63f88',
 
   'src/third_party/webrtc':
-    Var('webrtc_git') + '/src.git' + '@' + '159c16f3ceea1d02d08d51fc83d843019d773ec6',
+    'https://github.com/jtg-gg/nwjs-webrtc.git@origin/dev39-m75',
 
   'src/third_party/xdg-utils': {
       'url': Var('chromium_git') + '/chromium/deps/xdg-utils.git' + '@' + 'd80274d5869b17b8c9067a1022e4416ee7ed5e0d',
