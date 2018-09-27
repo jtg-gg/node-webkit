@@ -2226,6 +2226,14 @@ hooks = [
                 ],
   },
   {
+    'name':'node_build_tools',
+    'pattern': '.',
+    'action': [
+      'python',
+      'src/content/nw/tools/node_build_tools.py',
+    ],
+  },
+  {
     'name': 'nw_patch',
     'pattern': '.',
     'action': [
