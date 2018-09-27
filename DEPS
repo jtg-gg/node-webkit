@@ -650,7 +650,9 @@ deps = {
   },
 
   'src/third_party/ffmpeg':
-    Var('chromium_git') + '/chromium/third_party/ffmpeg.git' + '@' + 'bfe62e18d24fc49234c29941e7dd9152f099e99b',
+    'https://github.com/jtg-gg/nwjs-ffmpeg.git@origin/dev34-m70',
+  'src/third_party/ffmpeg/libx264/x264_src':
+    'http://git.videolan.org/git/x264.git@e9a5903edf8ca59ef20e6f4894c196f135af735e',
 
   'src/third_party/flac':
     Var('chromium_git') + '/chromium/deps/flac.git' + '@' + 'af862024c8c8fa0ae07ced05e89013d881b00596',
