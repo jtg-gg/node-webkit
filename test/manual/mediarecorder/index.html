@@ -155,7 +155,7 @@
             }
             force_mic = false;
             successVid(stream);
-          }, function(){log("webkitGetUserMedia (audio) fail");});
+          }, function(err){log("webkitGetUserMedia (audio) fail " + err.name);});
         return;
       }
       curStream = stream;
@@ -203,7 +203,7 @@
         var canvas = document.getElementById("myCanvas");
         successVid(canvas.captureStream(30));
       } else
-        navigator.webkitGetUserMedia({audio: audio_cond, video: video_cond}, successVid, function(){log("webkitGetUserMedia fail");});
+        navigator.webkitGetUserMedia({audio: audio_cond, video: video_cond}, successVid, function(err){log("webkitGetUserMedia fail " + err.name);});
     else {
       streamRecord.onstop = function (ev) {
         log("streamRecord1 Event " + ev.type +" "+ this.mimeType +"<br>");
