@@ -35,7 +35,7 @@ namespace extensions {
     static NwDesktopCaptureMonitor* GetInstance();
 
     NwDesktopCaptureMonitor();
-    void Start(bool screens, bool windows);
+    void Start(bool screens, bool windows, int thumbnail_width, int thumbnail_height);
     void Stop();
     bool IsStarted();
 
@@ -194,7 +194,7 @@ namespace extensions {
       : started_(false) {
   }
 
-  void NwDesktopCaptureMonitor::Start(bool screens, bool windows) {
+  void NwDesktopCaptureMonitor::Start(bool screens, bool windows, int thumbnail_width, int thumbnail_height) {
     if (started_) {
       return;
     }
@@ -209,6 +209,7 @@ namespace extensions {
         std::make_unique<NativeDesktopMediaList>(
           content::DesktopMediaID::TYPE_SCREEN,
           webrtc::DesktopCapturer::CreateScreenCapturer(options));
+      screen_media_list->SetThumbnailSize(gfx::Size(thumbnail_width, thumbnail_height));
       media_list_.push_back(std::move(screen_media_list));
     }
 
@@ -217,6 +218,7 @@ namespace extensions {
         std::make_unique<NativeDesktopMediaList>(
           content::DesktopMediaID::TYPE_WINDOW,
           webrtc::DesktopCapturer::CreateWindowCapturer(options));
+      window_media_list->SetThumbnailSize(gfx::Size(thumbnail_width, thumbnail_height));
       media_list_.push_back(std::move(window_media_list));
     }
 
@@ -343,9 +345,15 @@ void NwDesktopCaptureMonitor::OnSourceThumbnailChanged(DesktopMediaList* list, i
 
   bool NwScreenStartMonitorFunction::RunNWSync(base::ListValue* response, std::string* error) {
     bool screens, windows;
+    int width  = 150;
+    int height = 150;
     EXTENSION_FUNCTION_VALIDATE(args_->GetBoolean(0, &screens));
     EXTENSION_FUNCTION_VALIDATE(args_->GetBoolean(1, &windows));
-    NwDesktopCaptureMonitor::GetInstance()->Start(screens, windows);
+    args_->GetInteger(2, &width);
+    args_->GetInteger(3, &height);
+    width  = (width  <= 0) ? 150 : width;
+    height = (height <= 0) ? 150 : height;
+    NwDesktopCaptureMonitor::GetInstance()->Start(screens, windows, width, height);
     return true;
   }
 
