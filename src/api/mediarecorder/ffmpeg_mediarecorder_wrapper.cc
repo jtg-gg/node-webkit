@@ -21,6 +21,7 @@
 #include "base/bind_helpers.h"
 #include "base/synchronization/condition_variable.h"
 #include "base/task_runner_util.h"
+#include "base/task/post_task.h"
 #include "base/threading/thread.h"
 
 #include "media/ffmpeg/ffmpeg_common.h"
@@ -32,19 +33,21 @@ extern "C" {
 #include <libavutil/parseutils.h>
 #include "ffmpeg_mediarecorder_wrapper.h"
   
-#define FFMPEG_MEDIA_RECORDER_ERROR(ERRMSG, ERRNUM, ERRSRC) std::unique_ptr<base::ListValue> error_args = error(ERRMSG, ERRNUM, ERRSRC) ;LOG(ERROR) << *error_args; event_cb_.Run("NWObjectMediaRecorderError", error_args.release());
+#define FFMPEG_MEDIA_RECORDER_ERROR(ERRMSG, ERRNUM, ERRSRC) std::unique_ptr<base::Value> error_args = error(ERRMSG, ERRNUM, ERRSRC) ;LOG(ERROR) << *error_args; event_cb_.Run("NWObjectMediaRecorderError", std::move(error_args));
 
-//#define MEMORY_PROFILING
 //#define DO_CPU_PROFILING
+
+  static const char* kFrameCount = "frameCount";
+  static const float kFrameCountInterval = 5.0f;
 
   // forward declaration
   void ff_color_frame(AVFrame *frame, const int *c);
 
-  static std::unique_ptr<base::ListValue> error(const char* msg, const int num, const char* src) {
+  static std::unique_ptr<base::Value> error(const char* msg, const int num, const char* src) {
     std::unique_ptr<base::ListValue> args = std::make_unique<base::ListValue>();
-    args->AppendString(msg);
-    args->AppendInteger(num);
-    args->AppendString(src);
+    args->GetList().emplace_back(msg);
+    args->GetList().emplace_back(num);
+    args->GetList().emplace_back(src);
     return args;
   }
 
@@ -74,40 +77,50 @@ extern "C" {
     DISALLOW_COPY_AND_ASSIGN(AutoLockIncrement);
   };
 
-  class FFMpegAVPacket : public base::RefCountedThreadSafe<FFMpegAVPacket> {
-  private:
-    AVPacket packet_;
-    friend class base::RefCountedThreadSafe<FFMpegAVPacket>;
-    ~FFMpegAVPacket(){
-      av_packet_unref(&packet_);
-#ifdef MEMORY_PROFILING
-      object_counter_--;
-#endif
-    }
-  public:
-#ifdef MEMORY_PROFILING
-    static int object_counter_;
-    static int max_object_;
-#endif
-    AVPacket* get() {
-      return &packet_;
-    }
+  struct FFMpegMediaRecorder::OutputContext {
+    AVFormatContext* fc;
+    bool active;
     
-    FFMpegAVPacket(const AVPacket* pkt) {
-      memcpy(&packet_, pkt, sizeof(AVPacket));
-#ifdef MEMORY_PROFILING
-      object_counter_++;
-      if (object_counter_ > max_object_)
-        max_object_ = object_counter_;
-#endif
-    }
+    // 2 for audio/video
+    bool saveOffset[2];
+    int64_t pts_offset[2];
+    int64_t dts_offset[2];
     
-  };
+    // 0 queued, 1 processed
+    int64_t pkt_size[2];
+    int64_t pkt_pts[2];
 
-#ifdef MEMORY_PROFILING
-  int FFMpegAVPacket::object_counter_ = 0;
-  int FFMpegAVPacket::max_object_ = 0;
-#endif
+    int64_t last_warning;
+    bool drop_packets;
+    base::Thread* worker_thread;
+  
+    OutputContext(AVFormatContext* fc) : fc(fc) {
+      active = true;
+      for (int i=0; i<2; i++) {
+        saveOffset[i] = false;
+        pts_offset[i] = 0;
+        dts_offset[i] = 0;
+        pkt_size[i] = 0;
+        pkt_pts[i] = 1;
+      }
+      last_warning = 0;
+      worker_thread = NULL;
+      drop_packets = false;
+    }
+    
+    bool addTimeElapsed(base::Value& dict) const {
+      return dict.SetKey("timeElapsedMs", base::Value(static_cast<int>(pkt_pts[0])));
+    }
+    bool addBytesQueued(base::Value& dict) const {
+      return dict.SetKey("bytesQueued", base::Value(static_cast<int>(pkt_size[0])));
+    }
+    bool addBytesSent(base::Value& dict) const {
+      return dict.SetKey("bytesSent", base::Value(static_cast<int>(pkt_size[1])));
+    }
+    bool addOutputUrl(base::Value& dict) const {
+      return dict.SetKey("outputUrl", base::Value(fc->url));
+    }
+  };
   
   FFMpegMediaRecorder::FFMpegMediaRecorder()
   : can_stop_(0), can_stop_cv_(&can_stop_lock_) {
@@ -120,7 +133,10 @@ extern "C" {
     video_only = 0;
     fileReady_ = false;
     lastSrcW_ = lastSrcH_ = 0;
-    
+    frame_count_ = 0;
+    frame_count_last_interval_ = 0;
+    frame_count_last_interval_timer_ = 0.0f;
+
     blackPixel_  = NULL;
     blackScaler_ = NULL;
 
@@ -228,15 +244,15 @@ extern "C" {
     return have_audio;
   }
 
-  int FFMpegMediaRecorder::Init(const char* mime, const EventCB& event_cb, const char* audioOpt, const char* videoOpt, const char* muxerOpt, const std::string& output, const int logLevel) {
+  int FFMpegMediaRecorder::Init(const std::string& mime, const EventCB& event_cb, const std::string& audioOpt, const std::string& videoOpt, const std::string& muxerOpt, const std::string& output, const int logLevel) {
     event_cb_ = event_cb;
     av_log_set_level(logLevel);
 
     AVDictionary** opts[3] = {&audioOpt_, &videoOpt_, &muxerOpt_};
-    const char* charOpts[3] = {audioOpt, videoOpt, muxerOpt};
+    const char* charOpts[3] = {audioOpt.c_str(), videoOpt.c_str(), muxerOpt.c_str()};
     
     for(int i=0; i<3; i++) {
-      assert(*opts[i] == NULL);
+      DCHECK(*opts[i] == NULL);
       if (charOpts[i]) av_dict_parse_string(opts[i], charOpts[i], "=", ";", 0);
       
       AVDictionaryEntry *t = av_dict_get(*opts[i], "", NULL, AV_DICT_IGNORE_SUFFIX);
@@ -245,20 +261,20 @@ extern "C" {
         t = av_dict_get(*opts[i], "", t, AV_DICT_IGNORE_SUFFIX);
       }
     }
-    audio_only = audioOpt && !videoOpt;
-    video_only = videoOpt && !audioOpt;
+    audio_only = !audioOpt.empty() && videoOpt.empty();
+    video_only = !videoOpt.empty() && audioOpt.empty();
     
     output_ = output;
     int ret;
     if (output_.empty()) {
       AVFormatContext* oc1 = NULL;
       /* allocate the output media context */
-      ret = avformat_alloc_output_context2(&oc1, av_guess_format(NULL, NULL, mime), NULL, NULL);
+      ret = avformat_alloc_output_context2(&oc1, av_guess_format(NULL, NULL, mime.c_str()), NULL, NULL);
       if (!oc1) {
         FFMPEG_MEDIA_RECORDER_ERROR("avformat_alloc_output_context2 fails", ret, oc1->url);
         return ret;
       }
-      ocs.push_back(OutputContext(oc1));
+      ocs.emplace_back(oc1);
       if (strcmp(oc1->oformat->extensions, "flv")==0) {
         oc1->oformat->audio_codec = AV_CODEC_ID_AAC;
         oc1->oformat->video_codec = AV_CODEC_ID_H264;
@@ -276,19 +292,19 @@ extern "C" {
       for (unsigned int i=0; i<outputs.size(); i++) {
         const char* fileName = outputs[i].c_str();
         AVOutputFormat* oformat = av_guess_format(NULL, fileName, NULL);
-        oformat = oformat ? oformat : av_guess_format(NULL, NULL, mime);
+        oformat = oformat ? oformat : av_guess_format(NULL, NULL, mime.c_str());
         AVFormatContext* oc = NULL;
         ret = avformat_alloc_output_context2(&oc, oformat, NULL, NULL);
         if (!oc) {
           FFMPEG_MEDIA_RECORDER_ERROR("avformat_alloc_output_context2 fails", ret, fileName)
           return ret;
         }
-        ocs.push_back(OutputContext(oc));
+        ocs.emplace_back(oc);
         if (strcmp(oc->oformat->extensions, "flv")==0) {
           oc->oformat->audio_codec = AV_CODEC_ID_AAC;
           oc->oformat->video_codec = AV_CODEC_ID_H264;
         }
-        assert(oc->url == NULL);
+        DCHECK(oc->url == NULL);
         oc->url = av_strdup(fileName);
         ret = avio_open2(&oc->pb, fileName, AVIO_FLAG_WRITE, NULL, &muxerOpt_);
         if (oc->pb == 0) {
@@ -304,7 +320,7 @@ extern "C" {
     FFMpegMediaRecorder::EventCB* event_cb = reinterpret_cast<FFMpegMediaRecorder::EventCB*>(h);
     //LOG(INFO) << "data size " << size;
     event_cb->Run("NWObjectMediaRecorderData",
-                  base::Value::CreateWithCopiedBuffer((char*)data, size).release());
+                  base::Value::CreateWithCopiedBuffer((char*)data, size));
     return size;
   }
   
@@ -324,9 +340,9 @@ extern "C" {
       if (oc1->pb == NULL)
         av_free(buffer);
 
-      for (unsigned int j=0; j<ocs.size(); j++) {
-        if (ocs[j].fc->pb == NULL) {
-          FFMPEG_MEDIA_RECORDER_ERROR("avio_alloc_context fails", -1, ocs[j].fc->url)
+      for (auto &oc : ocs) {
+        if (oc.fc->pb == NULL) {
+          FFMPEG_MEDIA_RECORDER_ERROR("avio_alloc_context fails", -1, oc.fc->url)
           return -1;
         }
       }
@@ -365,8 +381,10 @@ extern "C" {
     }
 
     fileReady_ = true;
-    worker_thread_.reset(new base::Thread("FFMpegMediaRecorder_Worker"));
-    worker_thread_->Start();
+    for (unsigned int j=0; j<ocs.size();j++) {
+      ocs[j].worker_thread = new base::Thread("FFMpegMediaRecorder_Worker"+std::to_string(j));
+      ocs[j].worker_thread->Start();
+    }
     LOG(INFO) << "FFMpegMediaRecorder can start recording now";
     event_cb_.Run("NWObjectMediaRecorderStart", NULL);
     return 0;
@@ -382,11 +400,11 @@ extern "C" {
 
     Profiler(const char* name, Profiler* parent = NULL, int elapsed = 0) : 
       parent_(parent), elapsed_(elapsed) {
-      start_ = base::TimeTicks::HighResNow();
+      start_ = base::TimeTicks::Now();
       name_ = name;
     }
     ~Profiler() {
-      double elapsed = (base::TimeTicks::HighResNow() - start_).InMillisecondsF();
+      double elapsed = (base::TimeTicks::Now() - start_).InMillisecondsF();
       if (parent_ == NULL) {
         if (elapsed > elapsed_) {
           //DVLOG(1) << "\n" << ostream_.str() << "PROFILER " << name_ << ": " << elapsed;
@@ -426,18 +444,35 @@ extern "C" {
     }
     else {
       base::TimeDelta dt = estimated_capture_time - videoStart_;
-      double dExpectedPts = dt.InSecondsF() / c->time_base.num * c->time_base.den;
+      const double dtInSeconds = dt.InSecondsF();
+      double dExpectedPts = dtInSeconds / c->time_base.num * c->time_base.den;
       int expectedPts = dExpectedPts + 0.5;
       dstFrame->pts++;
       //DVLOG(1) << "VIDEO dt: " << dt.InSecondsF() << ", dExpectedPts: " << dExpectedPts << ", pts: " << expectedPts << ", framePts: " << dstFrame->pts;
 
       if (dstFrame->pts < expectedPts) {
-        //DVLOG(1) << "adjust the VIDEO frame " << dstFrame->pts << ",expected frame is " << dExpectedPts << "\n";
+        //DLOG(INFO) << "adjust the VIDEO frame " << dstFrame->pts << ", expected frame is " << dExpectedPts;
         dstFrame->pts = expectedPts;
       } else if ( dstFrame->pts -  dExpectedPts > 1.0) {
-        //DVLOG(1) << "drop   the VIDEO frame " << dstFrame->pts << ",expected frame is " << dExpectedPts << "\n";
+        //DLOG(INFO) << "drop   the VIDEO frame " << dstFrame->pts << ", expected frame is " << dExpectedPts;
         dstFrame->pts--;
         return false;
+      }
+      frame_count_last_interval_++;
+      if (dtInSeconds - frame_count_last_interval_timer_ > kFrameCountInterval) {
+        const double encoderFps = c->time_base.den / c->time_base.num;
+        const double actualFps = frame_count_last_interval_ / (dtInSeconds - frame_count_last_interval_timer_);
+        if (actualFps / encoderFps <= 0.8333 && encoderFps - actualFps > 1) {
+          LOG(WARNING) << "encoder FPS:" << encoderFps << " actual FPS:" << actualFps;
+          std::unique_ptr<base::Value> fps_args = error("actual FPS is lower than FPS set in encoder", MKTAG('F','P','S','L'), "");
+          base::Value fps_dict(base::Value::Type::DICTIONARY);
+          fps_dict.SetKey("actualFps", base::Value(actualFps));
+          fps_dict.SetKey("encoderFps", base::Value(encoderFps));
+          fps_args->GetList().push_back(std::move(fps_dict));
+          event_cb_.Run("NWObjectMediaRecorderWarning", std::move(fps_args));
+        }
+        frame_count_last_interval_ = 0;
+        frame_count_last_interval_timer_ = dtInSeconds;
       }
     }
 
@@ -483,7 +518,7 @@ extern "C" {
         dstH = scale * srcH;
       }
       
-      assert(dstW <= c->width && dstH <= c->height);
+      DCHECK(dstW <= c->width && dstH <= c->height);
 
       if (video_st.sws_ctx == NULL) {
         video_st.sws_ctx = sws_getContext(
@@ -553,20 +588,12 @@ extern "C" {
     int res;
     PROFILE_START(_write_video_frame, &update_video);
     res = write_video_frame(&video_st, dstFrame, &pkt);
-    assert(res == 0 || (pkt.buf == NULL && pkt.data == NULL && pkt.size == 0));
+    DCHECK(res == 0 || (pkt.buf == NULL && pkt.data == NULL && pkt.size == 0));
     PROFILE_END
     if (res == 0) {
       PROFILE_START(_write_frame, &update_video);
-      base::SingleThreadTaskRunner* tr = worker_thread_ ? worker_thread_->task_runner().get() : NULL;
-      scoped_refptr<FFMpegAVPacket> avpacket = new FFMpegAVPacket(&pkt);
-      if (tr) {
-        tr->PostTask(FROM_HERE, base::Bind(&FFMpegMediaRecorder::WriteFrame,
-                                            base::Unretained(this),
-                                            avpacket,
-                                            base::Unretained(&video_st)));
-      } else {
-        WriteFrame(avpacket, &video_st);
-      }
+      frame_count_++;
+      WriteFrames(&video_st.codec->time_base, video_st.st_index, &pkt);
       PROFILE_END
     }
     return true;
@@ -576,11 +603,22 @@ extern "C" {
   static void PutData(AVFrame* frame, int frameIdx, const media::AudioBus& audio_bus, int audioBusIdx, int size){
     const int channels = std::min(AV_NUM_DATA_POINTERS, audio_bus.channels());
     for (int i = 0; i < channels; i++) {
-      assert(frameIdx + size <= frame->linesize[0]);
+      DCHECK(frameIdx + size <= frame->linesize[0]);
       memcpy(frame->data[i] + frameIdx, &audio_bus.channel(i)[audioBusIdx / sizeof(float)], size);
     }
   }
   
+  std::string FFMpegMediaRecorder::GetOutputs() {
+    std::string outputs;
+    for (auto &oc : ocs) {
+      outputs.append(oc.fc->url);
+      outputs.append(";");
+    }
+    if (outputs.back() == ';')
+      outputs.pop_back();
+    return outputs;
+  }
+
   int FFMpegMediaRecorder::ReOpen(const char* old_output, const char* new_output) {
     int old_idx = -1;
     int ret = 0;
@@ -595,8 +633,9 @@ extern "C" {
       FFMPEG_MEDIA_RECORDER_ERROR("old_output not found", -1, old_output)
       return -1; //old_output not found
     }
-    ocs[old_idx].active = false;
-    AVFormatContext* old_c = ocs[old_idx].fc;
+    OutputContext& old_oc = ocs[old_idx];
+    old_oc.active = false;
+    AVFormatContext* old_c = old_oc.fc;
     AVFormatContext* oc = NULL;
     
     ret = avformat_alloc_output_context2(&oc, old_c->oformat, NULL, NULL);
@@ -610,11 +649,29 @@ extern "C" {
     }
     av_freep(&oc->url);
     oc->url = av_strdup(new_output ? new_output : old_c->url);
-    ret = avio_open2(&oc->pb, oc->url, AVIO_FLAG_WRITE, NULL, &muxerOpt_);
+    //ReOpenInternal(old_idx, oc);
+    bool success = base::PostTaskWithTraits(
+                       FROM_HERE,
+                       {base::MayBlock(), base::TaskPriority::HIGHEST,
+                        base::TaskShutdownBehavior::SKIP_ON_SHUTDOWN },
+                       base::BindOnce(&FFMpegMediaRecorder::ReOpenInternal, 
+                                      base::Unretained(this), old_idx, oc));
+    return success ? 0 : -1;
+  }
+  
+  void FFMpegMediaRecorder::ReOpenInternal(int old_idx, AVFormatContext* oc) {
+    OutputContext& old_oc = ocs[old_idx];
+    AVFormatContext* old_c = old_oc.fc;
+
+    std::unique_ptr<base::DictionaryValue> args = std::make_unique<base::DictionaryValue>();
+    args->SetKey("oldUrl", base::Value(old_c->url));
+    args->SetKey("newUrl", base::Value(oc->url));
+
+    int ret = avio_open2(&oc->pb, oc->url, AVIO_FLAG_WRITE, NULL, &muxerOpt_);
     if (oc->pb == 0) {
       FFMPEG_MEDIA_RECORDER_ERROR("avio_open2 fails", ret, oc->url);
       avformat_free_context(oc);
-      return ret;
+      return;
     }
     
     for (unsigned int i=0; i<old_c->nb_streams; i++) {
@@ -626,63 +683,106 @@ extern "C" {
       if (!out_stream) {
         FFMPEG_MEDIA_RECORDER_ERROR("Failed allocating output stream", -1, oc->url);
         avformat_free_context(oc);
-        return -1;
+        return;
       }
       
       if ((ret = avcodec_parameters_copy(out_stream->codecpar, in_codecpar)) < 0) {
         FFMPEG_MEDIA_RECORDER_ERROR("Failed to copy codec parameters", ret, oc->url);
         avformat_free_context(oc);
-        return ret;
+        return;
       }
       out_stream->codecpar->codec_tag = 0;
     }
     if ((ret = avformat_write_header(oc, &muxerOpt_)) < 0) {
       FFMPEG_MEDIA_RECORDER_ERROR("avformat_write_header fails", ret, oc->url);
       avformat_free_context(oc);
-      return ret;
+      return;
     }
+
+    old_oc.drop_packets = true;
+    if(old_oc.worker_thread) {
+      old_oc.worker_thread->Stop();
+      delete old_oc.worker_thread;
+    }
+      
     av_write_trailer(old_c);
     avio_close(old_c->pb);
     avformat_free_context(old_c);
 
-    ocs[old_idx].fc = oc;
-    ocs[old_idx].active = true;
+    old_oc.fc = oc;
     if (strcmp(oc->oformat->extensions, "mp4")==0) {
-      ocs[old_idx].saveOffset[0] = true;
-      ocs[old_idx].saveOffset[1] = true;
+      old_oc.saveOffset[0] = true;
+      old_oc.saveOffset[1] = true;
     }
-    return 0;
+    old_oc.drop_packets = false;
+    if(old_oc.worker_thread) {
+      old_oc.worker_thread = new base::Thread("FFMpegMediaRecorder_Worker"+std::to_string(old_idx));
+      old_oc.worker_thread->Start();
+    }
+    old_oc.active = true;
+    event_cb_.Run("NWObjectMediaRecorderReOpen", std::move(args));
   }
 
+  void FFMpegMediaRecorder::WriteFrame(OutputContext* oc, const AVRational *time_base, int st_index, AVPacket* pkt) {
+    if (oc->drop_packets) {
+      av_packet_free(&pkt);
+      return;
+    }
+    oc->pkt_size[1] += pkt->size;
+    oc->pkt_pts[1] = av_rescale_q(pkt->pts, *time_base, {1, 1000});
+    int ret = write_frame(oc->fc, time_base, st_index, pkt);
+
+    if (oc->worker_thread && oc->pkt_pts[0] - oc->pkt_pts[1] > 5000 && oc->pkt_pts[0] - oc->last_warning > 5000) {
+      oc->last_warning = oc->pkt_pts[0];
+      LOG(WARNING) << oc->fc->url << " deltabyte:"<< (oc->pkt_size[1] - oc->pkt_size[0]) << "\tbandwidth:" << 1000 * oc->pkt_size[1] / oc->pkt_pts[0];
+      std::unique_ptr<base::Value> bandwidth_args = error("network bandwidth is lower than encoding bitrate", MKTAG('B','W','D','L'), oc->fc->url);
+      base::Value bandwidth_dict(base::Value::Type::DICTIONARY);
+      oc->addBytesSent(bandwidth_dict);
+      oc->addBytesQueued(bandwidth_dict);
+      oc->addTimeElapsed(bandwidth_dict);
+      bandwidth_args->GetList().push_back(std::move(bandwidth_dict));
+      event_cb_.Run("NWObjectMediaRecorderWarning", std::move(bandwidth_args));
+    }
+
+    DCHECK(pkt->buf == NULL && pkt->data == NULL && pkt->size == 0);
+    if (ret < 0) {
+      oc->active = false;
+      oc->drop_packets = true;
+      FFMPEG_MEDIA_RECORDER_ERROR("WriteFrame Error", ret, oc->fc->url);
+    }
+  }
   
-  void FFMpegMediaRecorder::write_frames(const AVRational *time_base, int st_index, AVPacket *pkt) {
-    for (unsigned int i=0; i<ocs.size(); i++) {
-      if (!ocs[i].active) continue;
+  void FFMpegMediaRecorder::WriteFrames(const AVRational *time_base, int st_index, AVPacket *pkt) {
+    PROFILE(Lock_WriteFrames, NULL, 10);
+    base::AutoLock lock(lock_);
+    PROFILE(_write_frames, &Lock_WriteFrames, 0);
+
+    for (auto &oc : ocs) {
+      if (!oc.active) continue;
       AVPacket* clone = av_packet_clone(pkt);
-      assert(st_index>=0 && st_index<=1);
-      if (ocs[i].saveOffset[st_index]) {
-        ocs[i].pts_offset[st_index] = pkt->pts;
-        ocs[i].dts_offset[st_index] = pkt->dts;
-        ocs[i].saveOffset[st_index] = false;
+      DCHECK(st_index>=0 && st_index<=1);
+      if (oc.saveOffset[st_index]) {
+        oc.pts_offset[st_index] = pkt->pts;
+        oc.dts_offset[st_index] = pkt->dts;
+        oc.saveOffset[st_index] = false;
       }
-      clone->pts -= ocs[i].pts_offset[st_index];
-      clone->dts -= ocs[i].dts_offset[st_index];
-      int ret = write_frame(ocs[i].fc, time_base, st_index, clone);
-      av_packet_free(&clone);
-      if (ret < 0) {
-        ocs[i].active = false;
-        FFMPEG_MEDIA_RECORDER_ERROR("WriteFrame Error", ret, ocs[i].fc->url);
+      clone->pts -= oc.pts_offset[st_index];
+      clone->dts -= oc.dts_offset[st_index];
+      base::SingleThreadTaskRunner* tr = oc.worker_thread ? oc.worker_thread->task_runner().get() : NULL;
+
+      oc.pkt_size[0] += clone->size;
+      oc.pkt_pts[0] = av_rescale_q(clone->pts, *time_base, {1, 1000});
+      if (tr) {
+        tr->PostTask(
+                FROM_HERE,
+                base::BindOnce(&FFMpegMediaRecorder::WriteFrame,
+                               base::Unretained(this), &oc,
+                               time_base, st_index, clone));
+      } else {
+        WriteFrame(&oc, time_base, st_index, clone);
       }
     }
-  }
-
-  void FFMpegMediaRecorder::WriteFrame(const scoped_refptr<FFMpegAVPacket>& pkt, OutputStream* ost) {
-    PROFILE(Lock_WriteFrame, NULL, 10);
-    base::AutoLock lock(lock_);
-    PROFILE(_write_frame, &Lock_WriteFrame, 0);
-    AVPacket* avPacket = pkt.get()->get();
-    write_frames(&ost->codec->time_base, ost->st_index, avPacket);
-    assert(avPacket->buf == NULL && avPacket->data == NULL && avPacket->size == 0);
+    av_packet_unref(pkt);
   }
   
   void FFMpegMediaRecorder::RequestData(bool sendToThread) {
@@ -691,11 +791,12 @@ extern "C" {
       av_write_frame(ocs.front().fc, NULL);
     }
     else {
-      base::SingleThreadTaskRunner* tr = worker_thread_ ? worker_thread_->task_runner().get() : NULL;
+      base::SingleThreadTaskRunner* tr = ocs.front().worker_thread ? ocs.front().worker_thread->task_runner().get() : NULL;
       if (tr) {
-        tr->PostTask(FROM_HERE, base::Bind(&FFMpegMediaRecorder::RequestData,
-                                           base::Unretained(this),
-                                           false));
+        tr->PostTask(
+                FROM_HERE, 
+                base::BindOnce(&FFMpegMediaRecorder::RequestData,
+                               base::Unretained(this), false));
       } else {
         RequestData(false);
       }
@@ -770,22 +871,13 @@ extern "C" {
       AVPacket pkt = { 0 }; // data and size must be 0;
       PROFILE_START(_write_audio_frame, &update_audio);
       res = write_audio_frame(&audio_st, &pkt, res > 0 ? 0 : audio_st.tmp_frame->nb_samples);
-      assert(res >= 0 || (pkt.buf == NULL && pkt.data == NULL && pkt.size == 0));
+      DCHECK(res >= 0 || (pkt.buf == NULL && pkt.data == NULL && pkt.size == 0));
       PROFILE_END
       if (res >= 0) {
         //int64_t scaledPktDts = av_rescale_q(pkt.dts, audio_st.st->codec->time_base, audio_st.st->time_base);
         // write_frame is most likely the encoding bottlenect, I/O bound
         PROFILE_START(_write_frame, &update_audio);
-        base::SingleThreadTaskRunner* tr = worker_thread_ ? worker_thread_->task_runner().get() : NULL;
-        scoped_refptr<FFMpegAVPacket> avpacket = new FFMpegAVPacket(&pkt);
-        if (tr) {
-          tr->PostTask(FROM_HERE, base::Bind(&FFMpegMediaRecorder::WriteFrame,
-                                             base::Unretained(this),
-                                             avpacket,
-                                             base::Unretained(&audio_st)));
-        } else {
-          WriteFrame(avpacket, &audio_st);
-        }
+        WriteFrames(&audio_st.codec->time_base, audio_st.st_index, &pkt);
         PROFILE_END
       }
     } while (res > 0);
@@ -811,17 +903,34 @@ extern "C" {
         can_stop_cv_.Wait();
       }
     }
-#ifdef MEMORY_PROFILING
-    LOG(INFO) << "FFMpegAVPacket before stop: " << FFMpegAVPacket::object_counter_;
-#endif
-    if (worker_thread_) {
-      worker_thread_->Stop();
-      worker_thread_.reset();
+
+    std::unique_ptr<base::ListValue> stop_args = std::make_unique<base::ListValue>();
+    base::Value fps_args(base::Value::Type::DICTIONARY);
+
+    LOG(INFO) << "fps:" << 1000 * frame_count_ / ocs[0].pkt_pts[0];
+    fps_args.SetKey(kFrameCount, base::Value(frame_count_));
+    ocs[0].addTimeElapsed(fps_args);
+    stop_args->GetList().push_back(std::move(fps_args));
+
+    for (auto &c : ocs) {
+      LOG(INFO) << c.fc->url << " bandwidth:" << 8000 * c.pkt_size[1] / c.pkt_pts[0];
+      base::Value bandwidth_args(base::Value::Type::DICTIONARY);
+      c.addOutputUrl(bandwidth_args);
+      c.addBytesSent(bandwidth_args);
+      c.addTimeElapsed(bandwidth_args);
+      stop_args->GetList().emplace_back(std::move(bandwidth_args));
+
+      if (c.pkt_pts[0] - c.pkt_pts[1] > 5000) {
+        LOG(WARNING) << c.fc->url << " dropping all packets in task queue dt:" << c.pkt_pts[0] - c.pkt_pts[1];
+        c.drop_packets = true;
+      }
+      if (c.worker_thread) {
+        c.worker_thread->Stop();
+        delete c.worker_thread;
+        c.worker_thread = NULL;
+      }
     }
-#ifdef MEMORY_PROFILING
-    LOG(INFO) << "FFMpegAVPacket after  stop: " << FFMpegAVPacket::object_counter_ << ", Max object: " << FFMpegAVPacket::max_object_;
-#endif
-    base::AutoLock lock(lock_);
+
     AVCodecContext *c;
     int res;
     
@@ -833,7 +942,7 @@ extern "C" {
         AVPacket pkt = { 0 };
         res = write_video_frame(&video_st, NULL, &pkt);
         if (res == 0) {
-          write_frames(&c->time_base, video_st.st_index, &pkt);
+          WriteFrames(&c->time_base, video_st.st_index, &pkt);
         }
       }
     }
@@ -845,7 +954,7 @@ extern "C" {
         AVPacket pkt = { 0 }; // data and size must be 0;
         res = write_audio_frame(&audio_st, &pkt, 0);
         if (res >= 0) {
-          write_frames(&c->time_base, audio_st.st_index, &pkt);
+          WriteFrames(&c->time_base, audio_st.st_index, &pkt);
         }
       } while (res > -2);
       
@@ -856,7 +965,7 @@ extern "C" {
         AVPacket pkt = { 0 }; // data and size must be 0;
         res = avcodec_receive_packet(c, &pkt) == 0;
         if (res) {
-          write_frames(&c->time_base, audio_st.st_index, &pkt);
+          WriteFrames(&c->time_base, audio_st.st_index, &pkt);
         }
       }
     }
@@ -869,7 +978,7 @@ extern "C" {
     * av_write_trailer() may try to use memory that was freed on
     * av_codec_close(). */
     if (fileReady_) {
-      for (auto c : ocs) {
+      for (auto &c : ocs) {
         av_write_trailer(c.fc);
       }
     }
@@ -883,7 +992,7 @@ extern "C" {
     AVFormatContext* oc1 = ocs.front().fc;
     if (!(oc1->oformat->flags & AVFMT_NOFILE)) {
       if (!output_.empty()) {
-        for (auto c : ocs) {
+        for (auto &c : ocs) {
           avio_close(c.fc->pb);
         }
         avformat_network_deinit();
@@ -895,12 +1004,12 @@ extern "C" {
     }
 
     /* free the stream */
-    for (auto c : ocs) {
+    for (auto &c : ocs) {
       avformat_free_context(c.fc);
     }
     ocs.clear();
     
     event_cb_.Run("NWObjectMediaRecorderStop",
-                  NULL);
+                  std::move(stop_args));
   }
 };

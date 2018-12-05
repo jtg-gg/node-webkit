@@ -37,29 +37,13 @@ extern "C" {
 struct AVOutputFormat;
 struct AVFormatContext;
 struct AVCodec;
-class FFMpegAVPacket;
   
 class FFMpegMediaRecorder {
 public:
-  typedef base::Callback<void(const std::string event, base::Value* arg)> EventCB;
+  typedef base::Callback<void(const std::string event, std::unique_ptr<base::Value> arg)> EventCB;
 
 private:
-  struct OutputContext {
-    AVFormatContext* fc;
-    bool active;
-    bool saveOffset[2];
-    int64_t pts_offset[2];
-    int64_t dts_offset[2];
-    OutputContext(AVFormatContext* fc) {
-      this->fc = fc;
-      active = true;
-      for (int i=0; i<2; i++) {
-        saveOffset[i] = false;
-        pts_offset[i] = 0;
-        dts_offset[i] = 0;
-      }
-    }
-  };
+  struct OutputContext;
   OutputStream video_st, audio_st;
   std::vector<OutputContext> ocs;
   bool have_video, have_audio, audio_only, video_only;
@@ -81,18 +65,23 @@ private:
   base::TimeTicks audioStart_;
   bool fileReady_;
   short lastSrcW_, lastSrcH_;
+  int frame_count_;
   
-  std::unique_ptr<base::Thread> worker_thread_;
+  int frame_count_last_interval_;
+  float frame_count_last_interval_timer_;
+
   EventCB event_cb_;
 
   int InitFile();
-  void write_frames(const AVRational *time_base, int st_index, AVPacket *pkt);
+  void WriteFrames(const AVRational *time_base, int st_index, AVPacket *pkt);
+  void WriteFrame(OutputContext* oc, const AVRational *time_base, int st_index, AVPacket *pkt);
+  void ReOpenInternal(int old_idx, AVFormatContext* oc);
 
 public:
   FFMpegMediaRecorder();
   ~FFMpegMediaRecorder();
   
-  int Init(const char* mime, const EventCB& dipatcher_cb, const char* audioOpt, const char* videoOpt, const char* muxerOpt, const std::string& output, const int logLevel);
+  int Init(const std::string& mime, const EventCB& dipatcher_cb, const std::string& audioOpt, const std::string& videoOpt, const std::string& muxerOpt, const std::string& output, const int logLevel);
   int InitVideo(int width, int height, media::VideoPixelFormat pixelFormat);
   int InitAudio(int samplerate, int channels, int frame_size, int forceSync);
   
@@ -104,9 +93,9 @@ public:
 
   int ReOpen(const char* old_output, const char* new_output);
 
+  std::string GetOutputs();
+
   int has_video() const { return have_video; }
-  
-  void WriteFrame(const scoped_refptr<FFMpegAVPacket>& pkt, OutputStream* ost);
   
   void RequestData(bool sendToThread = true);
 
