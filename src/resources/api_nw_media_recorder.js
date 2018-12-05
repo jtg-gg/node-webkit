@@ -39,15 +39,15 @@ mediaRecorderEvents.dataEvent.addListener(function(id) {
 });
 
 mediaRecorderEvents.stopEvent = new NWEvent("NWObjectMediaRecorderStop");
-mediaRecorderEvents.stopEvent.addListener(function(id) {
+mediaRecorderEvents.stopEvent.addListener(function(id, args) {
   var obj = mediaRecorderEvents.objs[id];
   if (!obj)
     return;
   privates(obj).state = "inactive";
-  if (obj.ondataavailable && obj.output && obj.output.length == 0)
+  if (obj.ondataavailable && args[1].outputUrl.length == 0)
     obj.ondataavailable(new BlobEvent('dataavailable', {data: new Blob([null])}));
   if (obj.onstop)
-    obj.onstop(new Event('stop'));
+    obj.onstop(new Event('stop'), args);
   delete mediaRecorderEvents.objs[id];
 });
 
@@ -86,6 +86,28 @@ mediaRecorderEvents.dataEvent.addListener(function(id, error) {
     return;
   if (obj.onerror)
     obj.onerror(new Event('error'), error);
+  else
+    console.error(JSON.stringify(error), JSON.stringify(privates(obj)));
+});
+
+mediaRecorderEvents.dataEvent = new NWEvent("NWObjectMediaRecorderWarning");
+mediaRecorderEvents.dataEvent.addListener(function(id, warning) {
+  var obj = mediaRecorderEvents.objs[id];
+  if (!obj)
+    return;
+  if (obj.onwarning)
+    obj.onwarning(new Event('warning'), warning);
+  else
+    console.warn(JSON.stringify(warning), JSON.stringify(privates(obj)));
+});
+
+mediaRecorderEvents.dataEvent = new NWEvent("NWObjectMediaRecorderReOpen");
+mediaRecorderEvents.dataEvent.addListener(function(id, args) {
+  var obj = mediaRecorderEvents.objs[id];
+  if (!obj)
+    return;
+  if (obj.onreopen)
+    obj.onreopen(new Event('reopen'), args);
 });
 
 function MediaRecorder(stream, mimeType) {
@@ -99,7 +121,6 @@ function MediaRecorder(stream, mimeType) {
   privates(this).stream = stream;
   privates(this).mimeType = mimeType;
   privates(this).state = "inactive";
-  privates(this).output = "";
   this.ignoreMutedMedia = true;
 
   nw.Obj.create(this.id, 'MediaRecorder', {});
@@ -109,7 +130,7 @@ function MediaRecorder(stream, mimeType) {
 MediaRecorder.prototype.__defineGetter__('stream', function() {return privates(this).stream;});
 MediaRecorder.prototype.__defineGetter__('mimeType', function() {return privates(this).mimeType;});
 MediaRecorder.prototype.__defineGetter__('state', function() {return privates(this).state;});
-MediaRecorder.prototype.__defineGetter__('output', function() {return privates(this).output;});
+MediaRecorder.prototype.__defineGetter__('output', function() {return nwNative.MediaRecorderCall(this.id, "outputs")});
 
 MediaRecorder.prototype.__defineGetter__('onstart', function() {return privates(this).onstart;});
 MediaRecorder.prototype.__defineSetter__('onstart', function(callback) {
@@ -162,6 +183,24 @@ MediaRecorder.prototype.__defineSetter__('onerror', function(callback) {
     privates(this).onerror = callback;
   }else if(typeof(callback) == "function") {
     privates(this).onerror = callback;
+  }
+})
+
+MediaRecorder.prototype.__defineGetter__('onwarning', function() {return privates(this).onwarning;});
+MediaRecorder.prototype.__defineSetter__('onwarning', function(callback) {
+  if(callback == null) {
+    privates(this).onwarning = callback;
+  }else if(typeof(callback) == "function") {
+    privates(this).onwarning = callback;
+  }
+})
+
+MediaRecorder.prototype.__defineGetter__('onreopen', function() {return privates(this).onreopen;});
+MediaRecorder.prototype.__defineSetter__('onreopen', function(callback) {
+  if(callback == null) {
+    privates(this).onreopen = callback;
+  }else if(typeof(callback) == "function") {
+    privates(this).onreopen = callback;
   }
 })
 
@@ -244,7 +283,6 @@ MediaRecorder.prototype.start = function (param1, param2) {
   options.height = Math.round(Number(options.height));
 
   mediaRecorderEvents.objs[this.id] = this;
-  privates(this).output = options.output;
 
   videoParams += ";time_base=1/"+options.frameRate;
   if (options.videoBitRate)
@@ -271,7 +309,7 @@ MediaRecorder.prototype.start = function (param1, param2) {
 
   var res = nwNative.MediaRecorderStart(this.id, this.mimeType,
     videoTrack, audioTrack, options.forceSync,
-    audioParams, videoParams, muxerParams, this.output, options.loglevel);
+    audioParams, videoParams, muxerParams, options.output, options.loglevel);
   
   if(res) privates(this).state = "recording";
 };
