@@ -89,45 +89,54 @@ namespace nw {
   class MediaRecorderSink : content::MediaStreamVideoSink, 
     content::MediaStreamAudioSink, public base::RefCountedThreadSafe<MediaRecorderSink> {
   private:
-    MediaRecorderSink(blink::WebMediaStreamTrack& videoTrack,
+    MediaRecorderSink(int forceSync,
+      blink::WebMediaStreamTrack& videoTrack,
       blink::WebMediaStreamTrack& audioTrack,
       const FFMpegMediaRecorder::EventCB& event_cb)
-      : videoTrack_(videoTrack), audioTrack_(audioTrack), event_cb_(event_cb) {
+      : forceSync_(forceSync), videoTrack_(videoTrack),
+      audioTrack_(audioTrack), event_cb_(event_cb) {
     }
+
+    void Init(int ffmpeg_init_result) {
+      if (ffmpeg_init_result < 0)
+        return;
+      if (!videoTrack_.IsNull()) {
+        MediaStreamVideoSink::ConnectToTrack(
+          videoTrack_,
+          base::Bind(
+            &MediaRecorderSink::OnVideoFrame,
+            this), false);
+      }
+      if (!audioTrack_.IsNull())
+        MediaStreamAudioSink::AddToAudioTrack(this, audioTrack_);
+    }
+
   public:
     static scoped_refptr<MediaRecorderSink> Create(const char* mime, blink::WebMediaStreamTrack& videoTrack,
       blink::WebMediaStreamTrack& audioTrack, const v8::FunctionCallbackInfo<v8::Value>& args,
       const FFMpegMediaRecorder::EventCB& event_cb) {
-  
-      auto this_ = base::WrapRefCounted(new MediaRecorderSink(videoTrack, audioTrack, event_cb));
+
       v8::Isolate* isolate = args.GetIsolate();
-      const std::string audioParams = *v8::String::Utf8Value(isolate, args[5]);
-      const std::string videoParams = *v8::String::Utf8Value(isolate, args[6]);
+      const int forceSync = args[4]->ToInt32(isolate)->Value();
+      const std::string audioParams = audioTrack.IsNull() ? "" : *v8::String::Utf8Value(isolate, args[5]);
+      const std::string videoParams = videoTrack.IsNull() ? "" : *v8::String::Utf8Value(isolate, args[6]);
       const std::string muxerParams = *v8::String::Utf8Value(isolate, args[7]);
       const std::string output = *v8::String::Utf8Value(isolate, args[8]);
       const int loglevel = args[9]->ToInt32(isolate)->Value();
 
-      auto videoTrack_ = this_->videoTrack_;
-      auto audioTrack_ = this_->audioTrack_;
-      int res = this_->ffmpeg_.Init(mime, event_cb, audioTrack_.IsNull() ? NULL : audioParams.c_str(), videoTrack_.IsNull() ? NULL: videoParams.c_str(), muxerParams.c_str(), output, loglevel);
+      auto mediaRecorderSink = base::WrapRefCounted(new MediaRecorderSink(forceSync, videoTrack, audioTrack, event_cb));
 
-      if (res < 0)
-        return this_;
-
-      this_->forceSync_ = args[4]->ToInt32(isolate)->Value();
-
-      if (!videoTrack_.IsNull()) {
-        this_->MediaStreamVideoSink::ConnectToTrack(
-          videoTrack_,
-          base::Bind(
-            &MediaRecorderSink::OnVideoFrame,
-            this_), false);
-      }
-
-      if (!audioTrack_.IsNull())
-        MediaStreamAudioSink::AddToAudioTrack(this_.get(), audioTrack_);
+      base::PostTaskWithTraitsAndReplyWithResult(
+          FROM_HERE,
+          {base::MayBlock(), base::TaskPriority::HIGHEST,
+           base::TaskShutdownBehavior::CONTINUE_ON_SHUTDOWN },
+          base::BindOnce(&FFMpegMediaRecorder::Init,
+                         base::Unretained(&mediaRecorderSink->ffmpeg_), std::string(mime),
+                         event_cb, audioParams, videoParams, muxerParams,
+                         output, loglevel),
+          base::BindOnce(&MediaRecorderSink::Init, mediaRecorderSink));
       
-      return this_;
+      return mediaRecorderSink;
     }
 
     // Ref Counted, Stop to Delete !!
@@ -139,14 +148,12 @@ namespace nw {
         MediaStreamVideoSink::DisconnectFromTrack();
 
       base::PostTaskWithTraitsAndReply(
-        FROM_HERE,
-        { base::MayBlock(), base::TaskPriority::BEST_EFFORT,
-        base::TaskShutdownBehavior::CONTINUE_ON_SHUTDOWN },
-        base::Bind(&FFMpegMediaRecorder::Stop,
-                base::Unretained(&ffmpeg_)),
-        base::Bind(&MediaRecorderSink::Release,
-                this)
-      );
+          FROM_HERE,
+          {base::MayBlock(), base::TaskPriority::HIGHEST,
+           base::TaskShutdownBehavior::CONTINUE_ON_SHUTDOWN },
+          base::BindOnce(&FFMpegMediaRecorder::Stop,
+                         base::Unretained(&ffmpeg_)),
+          base::BindOnce(&MediaRecorderSink::Release, this));
     }
 
     void Pause() {
@@ -167,6 +174,10 @@ namespace nw {
 
     int ReOpen(const char* old_output, const char* new_output) {
       return ffmpeg_.ReOpen(old_output, new_output);
+    }
+
+    std::string GetOutputs() {
+      return ffmpeg_.GetOutputs();
     }
 
   private:
@@ -205,11 +216,12 @@ namespace nw {
   };
 
   static void Dispatch(const extensions::Dispatcher* dispatcher, const extensions::ScriptContext* context, int object_id,
-                const std::string event, base::Value* arg) {
+                const std::string event, std::unique_ptr<base::Value> arg) {
     base::ListValue event_args;
-    event_args.AppendInteger(object_id);
-    if (arg)
-      event_args.Append(base::WrapUnique(arg));
+    event_args.GetList().emplace_back(object_id);
+    if (arg) {
+      event_args.GetList().push_back(std::move(*arg));
+    }
     dispatcher->DispatchEvent(context->GetExtensionID(), event, event_args, NULL);
   }
   
@@ -292,6 +304,9 @@ namespace nw {
       std::string new_output = *v8::String::Utf8Value(isolate, args[3]);
       int res = i->second->ReOpen(old_output.c_str(), new_output.c_str());
       args.GetReturnValue().Set(res);
+    } else if (call.compare("outputs") == 0) {
+      std::string outputs = i->second->GetOutputs();
+      args.GetReturnValue().Set(v8::String::NewFromUtf8(isolate, outputs.c_str()));
     } else {
       args.GetReturnValue().Set(isolate->ThrowException(v8::Exception::Error(v8::String::NewFromUtf8(isolate,
         "MediaRecorder unknown function call"))));
