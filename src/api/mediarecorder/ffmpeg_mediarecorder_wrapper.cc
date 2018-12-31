@@ -91,11 +91,10 @@ extern "C" {
     int64_t pkt_pts[2];
 
     int64_t last_warning;
-    base::Lock* const lock;
     bool drop_packets;
     base::Thread* worker_thread;
   
-    OutputContext(AVFormatContext* fc) : fc(fc), lock(new base::Lock()) {
+    OutputContext(AVFormatContext* fc) : fc(fc) {
       active = true;
       for (int i=0; i<2; i++) {
         saveOffset[i] = false;
@@ -700,11 +699,8 @@ extern "C" {
       return;
     }
 
+    old_oc.drop_packets = true;
     if(old_oc.worker_thread) {
-      {
-        base::AutoLock(*old_oc.lock);
-        old_oc.drop_packets = true;
-      }
       old_oc.worker_thread->Stop();
       delete old_oc.worker_thread;
     }
@@ -728,7 +724,6 @@ extern "C" {
   }
 
   void FFMpegMediaRecorder::WriteFrame(OutputContext* oc, const AVRational *time_base, int st_index, AVPacket* pkt) {
-    base::AutoLock lock(*oc->lock);
     if (oc->drop_packets) {
       av_packet_free(&pkt);
       return;
@@ -925,7 +920,6 @@ extern "C" {
       stop_args->GetList().emplace_back(std::move(bandwidth_args));
 
       if (c.pkt_pts[0] - c.pkt_pts[1] > 5000) {
-        base::AutoLock lock(*c.lock);
         LOG(WARNING) << c.fc->url << " dropping all packets in task queue dt:" << c.pkt_pts[0] - c.pkt_pts[1];
         c.drop_packets = true;
       }
@@ -1010,7 +1004,6 @@ extern "C" {
 
     /* free the stream */
     for (auto &c : ocs) {
-      delete c.lock;
       avformat_free_context(c.fc);
     }
     ocs.clear();
