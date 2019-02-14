@@ -66,6 +66,8 @@ private:
   bool fileReady_;
   short lastSrcW_, lastSrcH_;
   int frame_count_;
+  int force_key_frame_;
+  int force_key_frame_counter_;
   
   int frame_count_last_interval_;
   float frame_count_last_interval_timer_;
