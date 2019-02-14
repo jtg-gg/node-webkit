@@ -134,6 +134,8 @@ extern "C" {
     fileReady_ = false;
     lastSrcW_ = lastSrcH_ = 0;
     frame_count_ = 0;
+    force_key_frame_ = 0;
+    force_key_frame_counter_ = 0;
     frame_count_last_interval_ = 0;
     frame_count_last_interval_timer_ = 0.0f;
 
@@ -178,6 +180,13 @@ extern "C" {
       av_dict_set(&videoOpt_, "video_size", NULL, 0);
     }
     
+    dict_entry = av_dict_get(videoOpt_, "force_key_frame", NULL, 0);
+    if (dict_entry) {
+      force_key_frame_ = strtol(dict_entry->value, NULL, 10);
+      force_key_frame_counter_ = force_key_frame_;
+      av_dict_set(&videoOpt_, "force_key_frame", NULL, 0);
+    }
+
     /* Add the video streams using the default format codecs
     * and initialize the codecs. */
     AVFormatContext* oc1 = ocs.front().fc;
@@ -587,6 +596,14 @@ extern "C" {
     AVPacket pkt = { 0 };
     int res;
     PROFILE_START(_write_video_frame, &update_video);
+    if (force_key_frame_counter_ >= 0) {
+      dstFrame->key_frame = 1;
+      dstFrame->pict_type = AV_PICTURE_TYPE_I;
+      force_key_frame_counter_--;
+    } else {
+      dstFrame->key_frame = 0;
+      dstFrame->pict_type = AV_PICTURE_TYPE_NONE;
+    }
     res = write_video_frame(&video_st, dstFrame, &pkt);
     DCHECK(res == 0 || (pkt.buf == NULL && pkt.data == NULL && pkt.size == 0));
     PROFILE_END
@@ -720,6 +737,7 @@ extern "C" {
       old_oc.worker_thread->Start();
     }
     old_oc.active = true;
+    force_key_frame_counter_ = force_key_frame_;
     event_cb_.Run("NWObjectMediaRecorderReOpen", std::move(args));
   }
 
