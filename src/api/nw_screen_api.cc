@@ -16,11 +16,10 @@
 #include "chrome/browser/media/webrtc/media_capture_devices_dispatcher.h"
 #include "chrome/browser/media/webrtc/native_desktop_media_list.h"
 #include "content/public/browser/render_frame_host.h"
+#include "content/public/browser/desktop_capture.h"
 #include "content/public/browser/desktop_streams_registry.h"
 #include "content/public/browser/render_process_host.h"
 #include "content/public/browser/web_contents.h"
-#include "third_party/webrtc/modules/desktop_capture/desktop_capture_options.h"
-#include "third_party/webrtc/modules/desktop_capture/desktop_capturer.h"
 #include "ui/gfx/codec/png_codec.h"
 #include "ui/gfx/image/image.h"
 #include "ui/gfx/image/image_skia.h"
@@ -201,14 +200,11 @@ namespace extensions {
 
     started_ = true;
 
-    webrtc::DesktopCaptureOptions options = webrtc::DesktopCaptureOptions::CreateDefault();
-    options.set_disable_effects(false);
-
     if (screens) {
       std::unique_ptr<DesktopMediaList> screen_media_list =
         std::make_unique<NativeDesktopMediaList>(
           content::DesktopMediaID::TYPE_SCREEN,
-          webrtc::DesktopCapturer::CreateScreenCapturer(options));
+          content::desktop_capture::CreateScreenCapturer());
       screen_media_list->SetThumbnailSize(gfx::Size(thumbnail_width, thumbnail_height));
       media_list_.push_back(std::move(screen_media_list));
     }
@@ -217,7 +213,7 @@ namespace extensions {
       std::unique_ptr<DesktopMediaList> window_media_list =
         std::make_unique<NativeDesktopMediaList>(
           content::DesktopMediaID::TYPE_WINDOW,
-          webrtc::DesktopCapturer::CreateWindowCapturer(options));
+          content::desktop_capture::CreateWindowCapturer());
       window_media_list->SetThumbnailSize(gfx::Size(thumbnail_width, thumbnail_height));
       media_list_.push_back(std::move(window_media_list));
     }
@@ -229,6 +225,9 @@ namespace extensions {
 
   void NwDesktopCaptureMonitor::Stop() {
     started_ = false;
+    for (auto& media_list : media_list_) {
+      DesktopMediaList::StopAndRelease(media_list);
+    }
     media_list_.clear();
   }
 
