@@ -38,3 +38,29 @@ index 0abc9a9..f456b12 100644
          [ 'OS in "mac ios"', {
            'sources': [
              'src/unix/darwin.c',
+diff --git a/common.gypi b/common.gypi
+index 5a08f51c18..69e0a601c2 100644
+--- common.gypi
++++ common.gypi
+@@ -102,6 +102,8 @@
+         'openssl_no_asm%': 0,
+       }],
+       ['OS == "win"', {
++        'clang': 1,
++        'icu_use_data_file_flag%': 1,
+         'os_posix': 0,
+         'v8_postmortem_support%': 0,
+         'clang_dir': 'third_party/llvm-build/Release+Asserts/',
+diff --git a/node.gypi b/node.gypi
+index 5e69140761..3021439375 100644
+--- node.gypi
++++ node.gypi
+@@ -312,7 +312,7 @@
+     [ 'OS=="mac" and component == "shared_library"', {
+       'xcode_settings': {
+         'OTHER_LDFLAGS': [
+-          '-L<(PRODUCT_DIR)/../nw/', '-lv8',
++          '-L<(PRODUCT_DIR)/../nw/', '-lv8', '-lc++abi',
+           '<(PRODUCT_DIR)/../nw/nwjs\ Framework.framework/nwjs\ Framework',
+                   '-Wl,-force_load <(V8_LIBBASE)',
+                   '-Wl,-force_load <(V8_PLTFRM)',
