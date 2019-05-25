@@ -38,3 +38,72 @@ index 0abc9a9..f456b12 100644
          [ 'OS in "mac ios"', {
            'sources': [
              'src/unix/darwin.c',
+diff --git a/common.gypi b/common.gypi
+index 360dcd0b19..a8ce09672d 100644
+--- common.gypi
++++ common.gypi
+@@ -155,6 +155,16 @@
+       ['OS=="mac"', {
+         'clang%': 1,
+       }],
++      [ 'OS == "win" and building_nw==1', {
++        'clang': 1,
++        'icu_use_data_file_flag%': 1,
++      }],
++      [ 'OS == "win" and building_nw==1 and component=="static_library"', {
++        'LIBCXX%': '<(PRODUCT_DIR)/../nw/obj/buildtools/third_party/libc++/libcpp.lib',
++      }],
++      [ 'OS == "win" and building_nw==1 and component=="shared_library"', {
++        'LIBCXX%': '<(PRODUCT_DIR)/../nw/libc++.dll.lib',
++      }],
+     ],
+   },
+ 
+@@ -292,7 +302,7 @@
+             }],
+           ],
+         },
+-        'defines': [ 'DEBUG', '_DEBUG', 'V8_ENABLE_CHECKS', '_HAS_ITERATOR_DEBUGGING=0' ],
++        'defines': [ 'DEBUG', '_DEBUG', 'V8_ENABLE_CHECKS' ],
+         'cflags': [ '-g', '-O0' ],
+         'conditions': [
+           ['OS=="aix"', {
+diff --git a/node.gyp b/node.gyp
+index 7269898353..b2d9517e33 100644
+--- node.gyp
++++ node.gyp
+@@ -729,7 +729,6 @@
+         # Warn when using deprecated V8 APIs.
+         'V8_DEPRECATION_WARNINGS=1',
+         'BUILDING_NW_NODE=1',
+-        '_ALLOW_ITERATOR_DEBUG_LEVEL_MISMATCH',
+         'V8_SHARED',
+         'USING_V8_SHARED',
+         'V8_USE_EXTERNAL_STARTUP_DATA',
+@@ -769,12 +768,8 @@
+                 'src/res/node-nw.rc',
+               ],
+             }],
+-            [ 'component == "shared_library"', {
+-              'libraries': [ '-lpsapi.lib', '<(PRODUCT_DIR)/../nw/obj/v8/v8_libbase.lib', '<(PRODUCT_DIR)/../nw/obj/v8/v8_libplatform.lib', '<(PRODUCT_DIR)/../nw/nw.dll.lib', '<(PRODUCT_DIR)/../nw/libc++.dll.lib'],
+-            }, {
+-              'libraries': [ '-lpsapi.lib', '<(PRODUCT_DIR)/../nw/obj/v8/v8_libbase.lib', '<(PRODUCT_DIR)/../nw/obj/v8/v8_libplatform.lib', '<(PRODUCT_DIR)/../nw/nw.dll.lib', '<(PRODUCT_DIR)/../nw/obj/buildtools/third_party/libc++/libcpp.lib'],
+-            }],
+           ],
++          'libraries': [ '-lpsapi.lib', '<(PRODUCT_DIR)/../nw/obj/v8/v8_libbase.lib', '<(PRODUCT_DIR)/../nw/obj/v8/v8_libplatform.lib', '<(PRODUCT_DIR)/../nw/nw.dll.lib', '<(LIBCXX)'],
+         }],
+         [ 'node_use_etw=="true"', {
+           'defines': [ 'HAVE_ETW=1' ],
+diff --git a/node.gypi b/node.gypi
+index 5e69140761..3021439375 100644
+--- node.gypi
++++ node.gypi
+@@ -312,7 +312,7 @@
+     [ 'OS=="mac" and component == "shared_library"', {
+       'xcode_settings': {
+         'OTHER_LDFLAGS': [
+-          '-L<(PRODUCT_DIR)/../nw/', '-lv8',
++          '-L<(PRODUCT_DIR)/../nw/', '-lv8', '-lc++abi',
+           '<(PRODUCT_DIR)/../nw/nwjs\ Framework.framework/nwjs\ Framework',
+                   '-Wl,-force_load <(V8_LIBBASE)',
+                   '-Wl,-force_load <(V8_PLTFRM)',
