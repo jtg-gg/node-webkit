@@ -19,8 +19,8 @@ index bc88d8b7..92ad8641 100644
            'UCHAR_TYPE=uint16_t',
          ],
        }],
-+      ['OS=="win" and component == "shared_library"', {
-+        'libraries': ['<(PRODUCT_DIR)/../nw/libc++.dll.lib'],
++      ['OS=="win" and component!="static_library"', {
++          'libraries': ['<@(LIBCXX)']
 +      }],
        ['(OS=="linux" or OS=="freebsd" or OS=="openbsd" or OS=="solaris" \
           or OS=="netbsd" or OS=="mac" or OS=="android" or OS=="qnx") and \
