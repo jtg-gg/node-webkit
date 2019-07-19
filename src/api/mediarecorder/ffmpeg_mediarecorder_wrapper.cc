@@ -57,6 +57,9 @@ extern "C" {
     char dst[1024];
     int idx = vsnprintf(dst, 1024, fmt, vl);
     if (idx >= 0 && idx < 1024) {
+      if (idx >= 1 && dst[idx - 1] == '\n') {
+        dst[idx - 1] = 0;
+      }
       LOG(INFO) << dst;
     }
   }
@@ -275,13 +278,14 @@ extern "C" {
     
     output_ = output;
     int ret;
+    LOG(INFO) << "mime:" << mime;
     if (output_.empty()) {
       AVFormatContext* oc1 = NULL;
       /* allocate the output media context */
       ret = avformat_alloc_output_context2(&oc1, av_guess_format(NULL, NULL, mime.c_str()), NULL, NULL);
       if (!oc1) {
-        FFMPEG_MEDIA_RECORDER_ERROR("avformat_alloc_output_context2 fails", ret, oc1->url);
-        return ret;
+        FFMPEG_MEDIA_RECORDER_ERROR("avformat_alloc_output_context2 fails", ret, "");
+        return std::min(ret, -1);
       }
       ocs.emplace_back(oc1);
       if (strcmp(oc1->oformat->extensions, "flv")==0) {
@@ -293,6 +297,7 @@ extern "C" {
       std::vector<std::string> outputs;
       std::string token;
       while(std::getline(outputStream, token, ';')) {
+        LOG(INFO) << "outputs:" << token;
         outputs.push_back(token);
       }
       
@@ -306,7 +311,7 @@ extern "C" {
         ret = avformat_alloc_output_context2(&oc, oformat, NULL, NULL);
         if (!oc) {
           FFMPEG_MEDIA_RECORDER_ERROR("avformat_alloc_output_context2 fails", ret, fileName)
-          return ret;
+          return std::min(ret, -1);
         }
         ocs.emplace_back(oc);
         if (strcmp(oc->oformat->extensions, "flv")==0) {
@@ -318,7 +323,7 @@ extern "C" {
         ret = avio_open2(&oc->pb, fileName, AVIO_FLAG_WRITE, NULL, &muxerOpt_);
         if (oc->pb == 0) {
           FFMPEG_MEDIA_RECORDER_ERROR("avio_open2 fails", ret, fileName)
-          return ret;
+          return std::min(ret, -1);
         }
       }
     }
@@ -926,13 +931,13 @@ extern "C" {
     std::unique_ptr<base::ListValue> stop_args = std::make_unique<base::ListValue>();
     base::Value fps_args(base::Value::Type::DICTIONARY);
 
-    LOG(INFO) << "fps:" << 1000 * frame_count_ / ocs[0].pkt_pts[0];
+    LOG_IF(INFO, ocs[0].pkt_pts[0]) << "fps:" << 1000 * frame_count_ / ocs[0].pkt_pts[0];
     fps_args.SetKey(kFrameCount, base::Value(frame_count_));
     ocs[0].addTimeElapsed(fps_args);
     stop_args->GetList().push_back(std::move(fps_args));
 
     for (auto &c : ocs) {
-      LOG(INFO) << c.fc->url << " bandwidth:" << 8000 * c.pkt_size[1] / c.pkt_pts[0];
+      LOG_IF(INFO, c.pkt_pts[0]) << c.fc->url << " bandwidth:" << 8000 * c.pkt_size[1] / c.pkt_pts[0];
       base::Value bandwidth_args(base::Value::Type::DICTIONARY);
       c.addOutputUrl(bandwidth_args);
       c.addBytesSent(bandwidth_args);
