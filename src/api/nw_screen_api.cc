@@ -398,4 +398,26 @@ void NwDesktopCaptureMonitor::OnSourceThumbnailChanged(DesktopMediaList* list, i
     return true;
   }
 
+  NwScreenIsStreamTrackValidFunction::NwScreenIsStreamTrackValidFunction() {}
+
+  bool NwScreenIsStreamTrackValidFunction::RunNWSync(base::ListValue* response, std::string* error) {
+    std::string label;
+    EXTENSION_FUNCTION_VALIDATE(args_->GetString(0, &label));
+    content::DesktopMediaID source = content::DesktopMediaID::Parse(label);
+    if (source.type == DesktopMediaID::TYPE_WINDOW) {
+#ifdef OS_WIN
+      response->AppendBoolean(IsWindow(reinterpret_cast<HWND>(source.id)));
+#elif defined(OS_MACOSX)
+      CFArrayRef window_id_array =
+          CFArrayCreate(nullptr, reinterpret_cast<const void**>(&source.id), 1, nullptr);
+      CFArrayRef window_array =
+          CGWindowListCreateDescriptionFromArray(window_id_array);
+      response->AppendBoolean(window_array && CFArrayGetCount(window_array));
+      CFRelease(window_id_array);
+      CFRelease(window_array);
+#endif
+    }
+    return true;
+  }
+
 } // extensions

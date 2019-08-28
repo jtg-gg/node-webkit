@@ -48,6 +48,7 @@ namespace nw.Screen {
     static void stopMonitor();
     static boolean[] isMonitorStarted();
     static DOMString[] registerStream(DOMString id);
+    static boolean isStreamTrackValid(DOMString track_label);
   };
 
 };
