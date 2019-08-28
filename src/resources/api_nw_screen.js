@@ -5,7 +5,7 @@ var nwScreenBinding;
 apiBridge.registerCustomHook(function(bindingsAPI) {
   var apiFunctions = bindingsAPI.apiFunctions;
   nwScreenBinding = bindingsAPI.compiledApi;
-  ['getScreens', 'initEventListeners', 'startMonitor', 'stopMonitor', 'isMonitorStarted', 'registerStream'].forEach(function(nwSyncAPIName) {
+  ['getScreens', 'initEventListeners', 'startMonitor', 'stopMonitor', 'isMonitorStarted', 'registerStream', 'isStreamTrackValid'].forEach(function(nwSyncAPIName) {
     apiFunctions.setHandleRequest(nwSyncAPIName, function() {
       return bindingUtil.sendRequestSync('nw.Screen.' + nwSyncAPIName, $Array.from(arguments), undefined, undefined);
     });
@@ -66,6 +66,9 @@ Screen.DesktopCaptureMonitor.start = nwScreenBinding.startMonitor;
 Screen.DesktopCaptureMonitor.stop = nwScreenBinding.stopMonitor;
 Screen.DesktopCaptureMonitor.registerStream = function(id) {
   return nwScreenBinding.registerStream(id)[0];
+};
+Screen.DesktopCaptureMonitor.isStreamTrackValid = function(label) {
+  return nwScreenBinding.isStreamTrackValid(label)[0];
 };
 
 Object.defineProperty(Screen.DesktopCaptureMonitor, 'started', {

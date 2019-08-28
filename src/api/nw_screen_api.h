@@ -88,6 +88,20 @@ namespace extensions {
   private:
     DISALLOW_COPY_AND_ASSIGN(NwScreenRegisterStreamFunction);
   };
+
+  // implement nw.Screen.isStreamTrackValid()
+  class NwScreenIsStreamTrackValidFunction : public NWSyncExtensionFunction {
+  public:
+    NwScreenIsStreamTrackValidFunction();
+    bool RunNWSync(base::ListValue* response, std::string* error) override;
+
+  protected:
+    ~NwScreenIsStreamTrackValidFunction() override {}
+    DECLARE_EXTENSION_FUNCTION("nw.Screen.isStreamTrackValid", UNKNOWN)
+
+  private:
+    DISALLOW_COPY_AND_ASSIGN(NwScreenIsStreamTrackValidFunction);
+  };
 } // extensions
 
 #endif //NW_SRC_API_NW_SCREEN_API_H_
