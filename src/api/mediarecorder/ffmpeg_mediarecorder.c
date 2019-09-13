@@ -99,13 +99,13 @@ int add_stream(OutputStream *ost, AVFormatContext *oc,
   if (!(*codec)) {
     fprintf(stderr, "Could not find encoder for '%s'\n",
       avcodec_get_name(codec_id));
-    return -1;
+    return -2;
   }
 
   AVStream* st = avformat_new_stream(oc, NULL);
   if (!st) {
     fprintf(stderr, "Could not allocate stream\n");
-    return -1;
+    return -3;
   }
   st->id = oc->nb_streams - 1;
   ost->st_index = st->index;
@@ -220,7 +220,7 @@ int open_audio(AVFormatContext *oc, AVCodec *codec, OutputStream *ost, const int
   ret = avcodec_open2(c, codec, opt);
   if (ret < 0) {
     fprintf(stderr, "Could not open audio codec: %s\n", av_err2str(ret));
-    return -1;
+    return ret;
   }
   
   c->time_base = (AVRational){ 1, c->sample_rate };  
@@ -242,7 +242,7 @@ int open_audio(AVFormatContext *oc, AVCodec *codec, OutputStream *ost, const int
   ost->swr_ctx = swr_alloc();
   if (!ost->swr_ctx) {
     fprintf(stderr, "Could not allocate resampler context\n");
-    return -1;
+    return -3;
   }
 
   /* set options */
@@ -257,7 +257,7 @@ int open_audio(AVFormatContext *oc, AVCodec *codec, OutputStream *ost, const int
   /* initialize the resampling context */
   if ((ret = swr_init(ost->swr_ctx)) < 0) {
     fprintf(stderr, "Failed to initialize the resampling context\n");
-    return -1;
+    return -4;
   }
 
   avcodec_parameters_from_context(oc->streams[ost->st_index]->codecpar, c);
@@ -400,14 +400,14 @@ int open_video(AVFormatContext *oc, AVCodec *codec, OutputStream *ost, AVDiction
   ret = avcodec_open2(c, codec, opt);
   if (ret < 0) {
     fprintf(stderr, "Could not open video codec: %s\n", av_err2str(ret));
-    return -1;
+    return ret;
   }
 
   /* allocate and init a re-usable frame */
   ost->frame = alloc_picture(c->pix_fmt, c->width, c->height);
   if (!ost->frame) {
     fprintf(stderr, "Could not allocate video frame\n");
-    return -1;
+    return -3;
   }
   
   oc->streams[ost->st_index]->time_base = c->time_base;

@@ -100,6 +100,10 @@ namespace nw {
     void Init(int ffmpeg_init_result) {
       if (ffmpeg_init_result < 0)
         return;
+      LOG(INFO) << this << ", " << "MediaRecorderSink Init, ffmpeg_:" << &ffmpeg_ 
+        << ", videoTrack_:" << std::hex << *reinterpret_cast<int*>(&videoTrack_)
+        << ", audioTrack_:" << std::hex << *reinterpret_cast<int*>(&audioTrack_);
+
       if (!videoTrack_.IsNull()) {
         MediaStreamVideoSink::ConnectToTrack(
           videoTrack_,
@@ -142,6 +146,10 @@ namespace nw {
 
     // Ref Counted, Stop to Delete !!
     void Stop() {
+      LOG(INFO) << this << ", " << "MediaRecorderSink Stop, ffmpeg_:" << &ffmpeg_ 
+        << ", videoTrack_:" << std::hex << *reinterpret_cast<int*>(&videoTrack_) 
+        << ", audioTrack_:" << std::hex << *reinterpret_cast<int*>(&audioTrack_);
+
       if (!audioTrack_.IsNull())
         WebMediaStreamAudioSink::RemoveFromAudioTrack(this, audioTrack_);
 
@@ -205,7 +213,7 @@ namespace nw {
 
     friend class base::RefCountedThreadSafe<MediaRecorderSink>;
     ~MediaRecorderSink() override {
-      DVLOG(3) << "MediaRecorderSink dtor().";
+      LOG(INFO) << this << ", " << "MediaRecorderSink dtor().";
     }
 
     int forceSync_;

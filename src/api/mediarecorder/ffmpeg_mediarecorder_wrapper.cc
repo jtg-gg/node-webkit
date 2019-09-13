@@ -33,7 +33,7 @@ extern "C" {
 #include <libavutil/parseutils.h>
 #include "ffmpeg_mediarecorder_wrapper.h"
   
-#define FFMPEG_MEDIA_RECORDER_ERROR(ERRMSG, ERRNUM, ERRSRC) std::unique_ptr<base::Value> error_args = error(ERRMSG, ERRNUM, ERRSRC) ;LOG(ERROR) << *error_args; event_cb_.Run("NWObjectMediaRecorderError", std::move(error_args));
+#define FFMPEG_MEDIA_RECORDER_ERROR(ERRMSG, ERRNUM, ERRSRC) std::unique_ptr<base::Value> error_args = error(ERRMSG, ERRNUM, ERRSRC) ;LOG(ERROR) << this << ", " << *error_args; event_cb_.Run("NWObjectMediaRecorderError", std::move(error_args));
 
 //#define DO_CPU_PROFILING
 
@@ -190,27 +190,37 @@ extern "C" {
       av_dict_set(&videoOpt_, "force_key_frame", NULL, 0);
     }
 
+    if (ocs.empty()) {
+      FFMPEG_MEDIA_RECORDER_ERROR("ocs is empty", -1, "");
+      return false;
+    }
     /* Add the video streams using the default format codecs
     * and initialize the codecs. */
     AVFormatContext* oc1 = ocs.front().fc;
+    int ret = -1;
+    LOG(INFO) << this << ", " << "video_codec:" << oc1->oformat->video_codec;
     if (oc1->oformat->video_codec != AV_CODEC_ID_NONE) {
-      if (add_stream(&video_st, oc1, &video_codec,
-        oc1->oformat->video_codec, bitrate, -1, -1, width, height, ::VideoPixelFormatToAVPixelFormat(videoFormat)) == 0) {
+      ret = add_stream(&video_st, oc1, &video_codec,
+        oc1->oformat->video_codec, bitrate, -1, -1, width, height,
+        ::VideoPixelFormatToAVPixelFormat(videoFormat));
+      if ( ret == 0) {
         have_video = 1;
       } else {
-        FFMPEG_MEDIA_RECORDER_ERROR("add_stream (video) fails", -1, oc1->url);
+        FFMPEG_MEDIA_RECORDER_ERROR("add_stream (video) fails", ret, oc1->url);
       }
     }
 
     /* Now that all the parameters are set, we can open the
     * video codecs and allocate the necessary encode buffers. */
-    if (have_video)
-      have_video = open_video(oc1, video_codec, &video_st, &videoOpt_) == 0;
+    if (have_video) {
+      ret = open_video(oc1, video_codec, &video_st, &videoOpt_);
+      have_video = (ret == 0);
+    }
     
     if (have_video) {
-      LOG(INFO) << "open_video success";
+      LOG(INFO) << this << ", " << "open_video success";
     } else {
-      FFMPEG_MEDIA_RECORDER_ERROR("open_video fails", -1, oc1->url);
+      FFMPEG_MEDIA_RECORDER_ERROR("open_video fails", ret, oc1->url);
     }
 
     if (have_video && (have_audio || video_only))
@@ -232,21 +242,30 @@ extern "C" {
     }
     target_rate = target_rate ? target_rate : samplerate;
 
+    if (ocs.empty()) {
+      FFMPEG_MEDIA_RECORDER_ERROR("ocs is empty", -1, "");
+      return false;
+    }
+
     AVFormatContext* oc1 = ocs.front().fc;
+    int ret = -1;
     if (oc1->oformat->audio_codec != AV_CODEC_ID_NONE) {
-      if (int ret = add_stream(&audio_st, oc1, &audio_codec,
-        oc1->oformat->audio_codec, -1, target_rate, channels, -1, -1, -1) == 0) {
+      ret = add_stream(&audio_st, oc1, &audio_codec,
+        oc1->oformat->audio_codec, -1, target_rate, channels, -1, -1, -1);
+      if (ret == 0) {
         have_audio = 1;
       } else {
-        FFMPEG_MEDIA_RECORDER_ERROR("add_stream (audio) fails", -1, oc1->url);
+        FFMPEG_MEDIA_RECORDER_ERROR("add_stream (audio) fails", ret, oc1->url);
       }
     }
 
-    if (have_audio)
-      have_audio = open_audio(oc1, audio_codec, &audio_st, samplerate, channels, frame_size, &audioOpt_) == 0;
+    if (have_audio) {
+      ret = open_audio(oc1, audio_codec, &audio_st, samplerate, channels, frame_size, &audioOpt_);
+      have_audio = (ret == 0);
+    }
 
-    LOG_IF(INFO, have_audio) << "open_audio success, sample rate " << audio_st.codec->sample_rate;
-    LOG_IF(ERROR, !have_audio) << "open_audio fails";
+    LOG_IF(INFO, have_audio)   << this << ", " << "open_audio success, sample rate " << audio_st.codec->sample_rate;
+    LOG_IF(ERROR, !have_audio) << this << ", " << "open_audio fails, err:" << ret;
 
     if (have_audio && (have_video || audio_only))
       InitFile();
@@ -269,7 +288,7 @@ extern "C" {
       
       AVDictionaryEntry *t = av_dict_get(*opts[i], "", NULL, AV_DICT_IGNORE_SUFFIX);
       while (t) {
-        LOG(INFO) << t->key << " --> " << t->value;
+        LOG(INFO) << this << ", " << t->key << " --> " << t->value;
         t = av_dict_get(*opts[i], "", t, AV_DICT_IGNORE_SUFFIX);
       }
     }
@@ -278,7 +297,7 @@ extern "C" {
     
     output_ = output;
     int ret;
-    LOG(INFO) << "mime:" << mime;
+    LOG(INFO) << this << ", " << "mime:" << mime;
     if (output_.empty()) {
       AVFormatContext* oc1 = NULL;
       /* allocate the output media context */
@@ -297,7 +316,6 @@ extern "C" {
       std::vector<std::string> outputs;
       std::string token;
       while(std::getline(outputStream, token, ';')) {
-        LOG(INFO) << "outputs:" << token;
         outputs.push_back(token);
       }
       
@@ -314,12 +332,14 @@ extern "C" {
           return std::min(ret, -1);
         }
         ocs.emplace_back(oc);
+        LOG_IF(ERROR, ocs.size()<=i) << this << ", " << "ocs.emplace_back(oc) fail";
         if (strcmp(oc->oformat->extensions, "flv")==0) {
           oc->oformat->audio_codec = AV_CODEC_ID_AAC;
           oc->oformat->video_codec = AV_CODEC_ID_H264;
         }
         DCHECK(oc->url == NULL);
         oc->url = av_strdup(fileName);
+        LOG(INFO) << this << ", " << "outputs:" << oc->url;
         ret = avio_open2(&oc->pb, fileName, AVIO_FLAG_WRITE, NULL, &muxerOpt_);
         if (oc->pb == 0) {
           FFMPEG_MEDIA_RECORDER_ERROR("avio_open2 fails", ret, fileName)
@@ -339,6 +359,7 @@ extern "C" {
   }
   
   int FFMpegMediaRecorder::InitFile() {
+    LOG_IF(ERROR, ocs.empty()) << this << ", " << "ocs is empty";
     AVFormatContext* oc1 = ocs.front().fc;
     /* open the output file, if needed */
     if (!(oc1->oformat->flags & AVFMT_NOFILE)) {
@@ -399,7 +420,7 @@ extern "C" {
       ocs[j].worker_thread = new base::Thread("FFMpegMediaRecorder_Worker"+std::to_string(j));
       ocs[j].worker_thread->Start();
     }
-    LOG(INFO) << "FFMpegMediaRecorder can start recording now";
+    LOG(INFO) << this << ", " << "FFMpegMediaRecorder can start recording now";
     event_cb_.Run("NWObjectMediaRecorderStart", NULL);
     return 0;
   }
@@ -477,7 +498,7 @@ extern "C" {
         const double encoderFps = c->time_base.den / c->time_base.num;
         const double actualFps = frame_count_last_interval_ / (dtInSeconds - frame_count_last_interval_timer_);
         if (actualFps / encoderFps <= 0.8333 && encoderFps - actualFps > 1) {
-          LOG(WARNING) << "encoder FPS:" << encoderFps << " actual FPS:" << actualFps;
+          LOG(WARNING) << this << ", " << "encoder FPS:" << encoderFps << " actual FPS:" << actualFps;
           std::unique_ptr<base::Value> fps_args = error("actual FPS is lower than FPS set in encoder", MKTAG('F','P','S','L'), "");
           base::Value fps_dict(base::Value::Type::DICTIONARY);
           fps_dict.SetKey("actualFps", base::Value(actualFps));
@@ -758,7 +779,7 @@ extern "C" {
 
     if (oc->worker_thread && oc->pkt_pts[0] - oc->pkt_pts[1] > 5000 && oc->pkt_pts[0] - oc->last_warning > 5000) {
       oc->last_warning = oc->pkt_pts[0];
-      LOG(WARNING) << oc->fc->url << " deltabyte:"<< (oc->pkt_size[1] - oc->pkt_size[0]) << "\tbandwidth:" << 1000 * oc->pkt_size[1] / oc->pkt_pts[0];
+      LOG(WARNING) << this << ", " << oc->fc->url << " deltabyte:"<< (oc->pkt_size[1] - oc->pkt_size[0]) << "\tbandwidth:" << 1000 * oc->pkt_size[1] / oc->pkt_pts[0];
       std::unique_ptr<base::Value> bandwidth_args = error("network bandwidth is lower than encoding bitrate", MKTAG('B','W','D','L'), oc->fc->url);
       base::Value bandwidth_dict(base::Value::Type::DICTIONARY);
       oc->addBytesSent(bandwidth_dict);
@@ -931,13 +952,13 @@ extern "C" {
     std::unique_ptr<base::ListValue> stop_args = std::make_unique<base::ListValue>();
     base::Value fps_args(base::Value::Type::DICTIONARY);
 
-    LOG_IF(INFO, ocs[0].pkt_pts[0]) << "fps:" << 1000 * frame_count_ / ocs[0].pkt_pts[0];
+    LOG_IF(INFO, ocs[0].pkt_pts[0]) << this << ", " << "fps:" << 1000 * frame_count_ / ocs[0].pkt_pts[0];
     fps_args.SetKey(kFrameCount, base::Value(frame_count_));
     ocs[0].addTimeElapsed(fps_args);
     stop_args->GetList().push_back(std::move(fps_args));
 
     for (auto &c : ocs) {
-      LOG_IF(INFO, c.pkt_pts[0]) << c.fc->url << " bandwidth:" << 8000 * c.pkt_size[1] / c.pkt_pts[0];
+      LOG_IF(INFO, c.pkt_pts[0]) << this << ", " << c.fc->url << " bandwidth:" << 8000 * c.pkt_size[1] / c.pkt_pts[0];
       base::Value bandwidth_args(base::Value::Type::DICTIONARY);
       c.addOutputUrl(bandwidth_args);
       c.addBytesSent(bandwidth_args);
@@ -945,7 +966,7 @@ extern "C" {
       stop_args->GetList().emplace_back(std::move(bandwidth_args));
 
       if (c.pkt_pts[0] - c.pkt_pts[1] > 5000) {
-        LOG(WARNING) << c.fc->url << " dropping all packets in task queue dt:" << c.pkt_pts[0] - c.pkt_pts[1];
+        LOG(WARNING) << this << ", " << c.fc->url << " dropping all packets in task queue dt:" << c.pkt_pts[0] - c.pkt_pts[1];
         c.drop_packets = true;
       }
       if (c.worker_thread) {
