@@ -33,7 +33,7 @@ extern "C" {
 #include <libavutil/parseutils.h>
 #include "ffmpeg_mediarecorder_wrapper.h"
   
-#define FFMPEG_MEDIA_RECORDER_ERROR(ERRMSG, ERRNUM, ERRSRC) std::unique_ptr<base::Value> error_args = error(ERRMSG, ERRNUM, ERRSRC) ;LOG(ERROR) << this << ", " << *error_args; event_cb_.Run("NWObjectMediaRecorderError", std::move(error_args));
+#define FFMPEG_MEDIA_RECORDER_ERROR(ERRMSG, ERRNUM, ERRSRC) std::unique_ptr<base::Value> error_args = error(ERRMSG, ERRNUM, ERRSRC) ;LOG(ERROR) << this << ", " << ERRMSG << ", " << ERRNUM; event_cb_.Run("NWObjectMediaRecorderError", std::move(error_args));
 
 //#define DO_CPU_PROFILING
 
@@ -369,7 +369,7 @@ extern "C" {
         }
         DCHECK(oc->url == NULL);
         oc->url = av_strdup(fileName);
-        LOG(INFO) << this << ", " << "outputs:" << oc->url;
+        //LOG(INFO) << this << ", " << "outputs:" << oc->url;
         ret = avio_open2(&oc->pb, fileName, AVIO_FLAG_WRITE, NULL, &muxerOpt_);
         if (oc->pb == 0) {
           FFMPEG_MEDIA_RECORDER_ERROR("avio_open2 fails", ret, fileName)
@@ -809,7 +809,7 @@ extern "C" {
 
     if (oc->worker_thread && oc->pkt_pts[0] - oc->pkt_pts[1] > 5000 && oc->pkt_pts[0] - oc->last_warning > 5000) {
       oc->last_warning = oc->pkt_pts[0];
-      LOG(WARNING) << this << ", " << oc->fc->url << " deltabyte:"<< (oc->pkt_size[1] - oc->pkt_size[0]) << "\tbandwidth:" << 1000 * oc->pkt_size[1] / oc->pkt_pts[0];
+      LOG(WARNING) << this << ", " /*<< oc->fc->url*/ << " deltabyte:"<< (oc->pkt_size[1] - oc->pkt_size[0]) << "\tbandwidth:" << 1000 * oc->pkt_size[1] / oc->pkt_pts[0];
       std::unique_ptr<base::Value> bandwidth_args = error("network bandwidth is lower than encoding bitrate", MKTAG('B','W','D','L'), oc->fc->url);
       base::Value bandwidth_dict(base::Value::Type::DICTIONARY);
       oc->addBytesSent(bandwidth_dict);
@@ -988,7 +988,7 @@ extern "C" {
     stop_args->GetList().push_back(std::move(fps_args));
 
     for (auto &c : ocs) {
-      LOG_IF(INFO, c.pkt_pts[0]) << this << ", " << c.fc->url << " bandwidth:" << 8000 * c.pkt_size[1] / c.pkt_pts[0];
+      LOG_IF(INFO, c.pkt_pts[0]) << this << ", " /*<< c.fc->url*/ << " bandwidth:" << 8000 * c.pkt_size[1] / c.pkt_pts[0];
       base::Value bandwidth_args(base::Value::Type::DICTIONARY);
       c.addOutputUrl(bandwidth_args);
       c.addBytesSent(bandwidth_args);
@@ -996,7 +996,7 @@ extern "C" {
       stop_args->GetList().emplace_back(std::move(bandwidth_args));
 
       if (c.pkt_pts[0] - c.pkt_pts[1] > 5000) {
-        LOG(WARNING) << this << ", " << c.fc->url << " dropping all packets in task queue dt:" << c.pkt_pts[0] - c.pkt_pts[1];
+        LOG(WARNING) << this << ", " /*<< c.fc->url*/ << " dropping all packets in task queue dt:" << c.pkt_pts[0] - c.pkt_pts[1];
         c.drop_packets = true;
       }
       if (c.worker_thread) {
