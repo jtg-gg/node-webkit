@@ -1,0 +1,12 @@
+diff --git a/common.gypi b/common.gypi
+index 731da71f6d..23115e74c3 100644
+--- common.gypi
++++ common.gypi
+@@ -694,6 +694,7 @@
+           }],
+           ['target_arch=="arm64"', {
+             'xcode_settings': {
++              'SDKROOT': '/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX11.0.sdk',
+               'ARCHS': ['arm64'],
+               'OTHER_LDFLAGS!': [
+                 '-Wl,-no_pie',
