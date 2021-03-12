@@ -197,13 +197,12 @@ def generate_target_nw(platform_name, arch, version):
                            'ffmpeg.dll',
                            'swiftshader\libEGL.dll',
                            'swiftshader\libGLESv2.dll',
-                           'notification_helper.exe'
+                           'notification_helper.exe',
+                           'nwjc.exe',
+                           'payload.exe',
+                           'chromedriver.exe'
                             # To be removed in CR51
                            ]
-        if flavor == 'sdk':
-            target['input'].append('nwjc.exe')
-            target['input'].append('payload.exe')
-            target['input'].append('chromedriver.exe')
         if flavor in ['nacl','sdk'] :
             target['input'].append('pnacl')
             target['input'].append('nacl_irt_x86_64.nexe')
@@ -214,14 +213,17 @@ def generate_target_nw(platform_name, arch, version):
         target['input'] = [
                            'nwjs.app',
                            'credits.html',
+                           'nwjc',
+                           'payload',
+                           'chromedriver',
                           ]
+        if arch == 'arm64':
+            target['input'].append('v8_context_snapshot.arm64.bin')
+        else:
+            target['input'].append('v8_context_snapshot.x86_64.bin')
         if flavor == 'sdk':
-            target['input'].append('nwjc')
-            target['input'].append('payload')
-            target['input'].append('chromedriver')
             target['input'].append('libffmpeg.dylib')
             target['input'].append('minidump_stackwalk')
-            target['input'].append('v8_context_snapshot.x86_64.bin')
     else:
         print 'Unsupported platform: ' + platform_name
         exit(-1)

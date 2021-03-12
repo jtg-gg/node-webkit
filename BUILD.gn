@@ -418,7 +418,6 @@ if (is_mac && !is_component_build) {
     # Use an absolute path to dump_syms in case a user has it in their path.
     args = rebase_path(outputs, root_out_dir) + [
              rebase_path("$root_out_dir/dump_syms"),
-             "-a", "x86_64",
              "-g",
              rebase_path(
                  "$root_out_dir/{{source}}.dSYM",
