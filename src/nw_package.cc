@@ -471,11 +471,11 @@ void Package::ReadChromiumArgs() {
   // Expand Windows psudovars (ex; %APPDATA%) passed in chromium-args in the same way as when 
   // passed as command line parameters.
   #if defined(OS_WIN)
-  TCHAR szEnvPath[MAX_PATH];
+  std::wstring ws_out(args.length() + MAX_PATH * 2, 0);
   std::wstring ws; 
   ws.assign( args.begin(), args.end());
-  if (ExpandEnvironmentStrings(ws.c_str(), szEnvPath,MAX_PATH) != 0) {
-    std::wstring ws_out = szEnvPath;
+  DWORD result = ExpandEnvironmentStrings(ws.c_str(), &ws_out.front(), ws_out.capacity());
+  if (result > 0 && result <= ws_out.capacity()) {
     args = std::string(ws_out.begin(), ws_out.end());
   } else {
     ReportError("Failed to expand chromium args",args.c_str());
